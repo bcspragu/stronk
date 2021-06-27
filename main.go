@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/securecookie"
 	"github.com/namsral/flag"
@@ -17,6 +18,7 @@ func main() {
 		usersFile    = flag.String("users_file", "users.json", "Path to the JSON file containing a mapping from password -> user name")
 		hashKeyFile  = flag.String("hash_key_file", "hashkey.dat", "Path to the file containing our secure cookie hash key")
 		blockKeyFile = flag.String("block_key_file", "blockkey.dat", "Path to the file containing our secure cookie block key")
+		dev          = flag.Bool("dev", true, "Whether or not we're running in dev mode")
 
 		addr = flag.String("addr", ":8080", "The address to run the HTTP server on")
 	)
@@ -32,7 +34,11 @@ func main() {
 		log.Fatalf("failed to load secure cookie: %v", err)
 	}
 
-	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+	if *dev {
+		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./frontend"))))
+	}
+
+	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
 			return
@@ -64,8 +70,9 @@ func main() {
 			Name:     "auth",
 			Value:    encoded,
 			Path:     "/",
-			Secure:   false,
+			Secure:   !*dev,
 			HttpOnly: true,
+			Expires:  time.Now().Add(time.Hour * 24 * 365 * 100),
 		}
 		http.SetCookie(w, cookie)
 	})
