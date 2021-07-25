@@ -7,11 +7,22 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gorilla/securecookie"
+	"github.com/lexacali/fivethreeone/server"
 	"github.com/namsral/flag"
 )
+
+// cookies is a thin wrapper around *securecookie.SecureCookie that implements
+// the server.SecureCookie interface.
+type cookies struct {
+	*securecookie.SecureCookie
+	dev bool
+}
+
+func (c *cookies) UseSecure() bool {
+	return !c.dev
+}
 
 func main() {
 	var (
@@ -29,71 +40,20 @@ func main() {
 		log.Fatalf("failed to load users file: %v", err)
 	}
 
-	s, err := loadSecureCookie(*hashKeyFile, *blockKeyFile)
+	sc, err := loadSecureCookie(*hashKeyFile, *blockKeyFile)
 	if err != nil {
 		log.Fatalf("failed to load secure cookie: %v", err)
 	}
 
+	var staticFrontendDir string
 	if *dev {
-		http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./frontend"))))
+		staticFrontendDir = "./frontend"
 	}
 
-	http.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-			return
-		}
+	srv := server.New(users, &cookies{SecureCookie: sc, dev: *dev}, staticFrontendDir)
 
-		var req struct {
-			Password string `json:"password"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-
-		name, ok := users[req.Password]
-		if !ok {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-
-		value := map[string]string{
-			"name": name,
-		}
-		encoded, err := s.Encode("auth", value)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		cookie := &http.Cookie{
-			Name:     "auth",
-			Value:    encoded,
-			Path:     "/",
-			Secure:   !*dev,
-			HttpOnly: true,
-			Expires:  time.Now().Add(time.Hour * 24 * 365 * 100),
-		}
-		http.SetCookie(w, cookie)
-	})
-
-	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("auth")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-			return
-		}
-
-		value := make(map[string]string)
-		if err := s.Decode("auth", cookie.Value, &value); err != nil {
-			http.Error(w, err.Error(), http.StatusForbidden)
-			return
-		}
-
-		fmt.Fprintf(w, "The value of name is %q", value["name"])
-	})
-
-	log.Fatal(http.ListenAndServe(*addr, nil))
+	log.Printf("Starting server on %q", *addr)
+	log.Fatal(http.ListenAndServe(*addr, srv))
 }
 
 func loadUsers(usersFile string) (map[string]string, error) {
