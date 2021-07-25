@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/gorilla/securecookie"
+	"github.com/lexacali/fivethreeone/db/sqldb"
 	"github.com/lexacali/fivethreeone/server"
 	"github.com/namsral/flag"
 )
@@ -31,6 +32,9 @@ func main() {
 		blockKeyFile = flag.String("block_key_file", "blockkey.dat", "Path to the file containing our secure cookie block key")
 		dev          = flag.Bool("dev", true, "Whether or not we're running in dev mode")
 
+		dbFile       = flag.String("db_file", "fivethreeone.db", "Path to the SQLite database")
+		migrationDir = flag.String("migration_dir", "db/sqldb/migrations", "Path to the directory containing our migration set files")
+
 		addr = flag.String("addr", ":8080", "The address to run the HTTP server on")
 	)
 	flag.Parse()
@@ -45,12 +49,18 @@ func main() {
 		log.Fatalf("failed to load secure cookie: %v", err)
 	}
 
+	db, err := sqldb.New(*dbFile, *migrationDir)
+	if err != nil {
+		log.Fatalf("failed to load SQLite db: %v", err)
+	}
+	defer db.Close()
+
 	var staticFrontendDir string
 	if *dev {
 		staticFrontendDir = "./frontend"
 	}
 
-	srv := server.New(users, &cookies{SecureCookie: sc, dev: *dev}, staticFrontendDir)
+	srv := server.New(users, &cookies{SecureCookie: sc, dev: *dev}, db, staticFrontendDir)
 
 	log.Printf("Starting server on %q", *addr)
 	log.Fatal(http.ListenAndServe(*addr, srv))

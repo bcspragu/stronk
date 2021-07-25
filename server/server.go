@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/lexacali/fivethreeone/fto"
 )
 
 // SecureCookie represents anything that knows how to encode and decode cookies
@@ -15,18 +17,26 @@ type SecureCookie interface {
 	UseSecure() bool
 }
 
+type DB interface {
+	RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string) error
+}
+
 type Server struct {
 	mux *http.ServeMux
 
-	users             map[string]string
-	cookies           SecureCookie
+	users   map[string]string
+	cookies SecureCookie
+	db      DB
+
 	staticFrontendDir string
 }
 
-func New(users map[string]string, sc SecureCookie, staticFrontendDir string) *Server {
+func New(users map[string]string, sc SecureCookie, db DB, staticFrontendDir string) *Server {
 	s := &Server{
-		users:             users,
-		cookies:           sc,
+		users:   users,
+		cookies: sc,
+		db:      db,
+
 		staticFrontendDir: staticFrontendDir,
 	}
 	s.initMux()

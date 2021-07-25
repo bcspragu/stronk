@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/lexacali/fivethreeone/testing/testcookie"
+	"github.com/lexacali/fivethreeone/testing/testdb"
 )
 
 const (
@@ -57,6 +58,7 @@ func getCookie(t *testing.T, name string, cookies []*http.Cookie) *http.Cookie {
 type testEnv struct {
 	users map[string]string
 	sc    *testcookie.SecureCookie
+	db    *testdb.DB
 }
 
 func setup() (*Server, *testEnv) {
@@ -65,7 +67,8 @@ func setup() (*Server, *testEnv) {
 			"test": "Testy McTesterson",
 		},
 		sc: testcookie.New(),
+		db: testdb.New(),
 	}
 
-	return New(env.users, env.sc, ""), env
+	return New(env.users, env.sc, env.db, ""), env
 }
