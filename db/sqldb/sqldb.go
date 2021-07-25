@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sync"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -17,6 +18,7 @@ import (
 )
 
 type DB struct {
+	mu  sync.Mutex
 	sql *sql.DB
 }
 
@@ -24,12 +26,175 @@ func (db *DB) Close() error {
 	return db.sql.Close()
 }
 
+func (db *DB) CreateUser(name string) (fto.UserID, error) {
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `INSERT INTO users (name) VALUES (?)`
+		if _, err := tx.Exec(q, name); err != nil {
+			return fmt.Errorf("failed to insert user: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	u, err := db.UserByName(name)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load just created user: %w", err)
+	}
+	return u.ID, nil
+}
+
+func (db *DB) User(id fto.UserID) (*fto.User, error) {
+	var u fto.User
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `SELECT id, name
+FROM Users
+WHERE id = ?`
+		return db.user(&u, tx.QueryRow(q, id))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user: %w", err)
+	}
+	return &u, nil
+}
+
+func (db *DB) UserByName(name string) (*fto.User, error) {
+	var u fto.User
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `SELECT id, name
+FROM Users
+WHERE name = ?`
+		return db.user(&u, tx.QueryRow(q, name))
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user: %w", err)
+	}
+	return &u, nil
+}
+
+type scanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func (db *DB) user(u *fto.User, sc scanner) error {
+	err := sc.Scan(&u.ID, &u.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fto.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("failed to query user: %w", err)
+	}
+
+	return nil
+}
+
 func (db *DB) RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string) error {
-	return errors.New("not implemented")
+	return db.transact(func(tx *sql.Tx) error {
+		q := `INSERT INTO lifts
+(user_id, exercise, set_type, set_number, weight, lift_note)
+VALUES (?, ?, ?, ?, ?, ?)`
+		if _, err := tx.Exec(q, uID, ex, st, &sqlWeight{&weight}, set, reps, nullString(note)); err != nil {
+			return fmt.Errorf("failed to insert lift: %w", err)
+		}
+		return nil
+	})
+}
+
+func (db *DB) transact(dbFn func(tx *sql.Tx) error) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if err := dbFn(tx); err != nil {
+		return fmt.Errorf("failed to perform DB action: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (db *DB) SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto.Weight) error {
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `INSERT INTO training_maxes
+(user_id, exercise, training_max_weight) VALUES
+(?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)`
+		args := []interface{}{
+			uID, fto.OverheadPress, &sqlWeight{&press},
+			uID, fto.Squat, &sqlWeight{&squat},
+			uID, fto.BenchPress, &sqlWeight{&bench},
+			uID, fto.Deadlift, &sqlWeight{&deadlift},
+		}
+		if _, err := tx.Exec(q, args...); err != nil {
+			return fmt.Errorf("failed to insert to training_maxes: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set training maxes: %w", err)
+	}
+	return nil
+}
+
+func (db *DB) TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error) {
+	var tms []*fto.TrainingMax
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT a.exercise, a.training_max_weight
+FROM training_maxes a
+INNER JOIN
+(
+	SELECT exercise, MAX(created_at) latest
+	FROM training_maxes
+	WHERE user_id = ?
+	GROUP BY exercise
+) b
+ON a.exercise = b.exercise
+	AND a.created_at = b.latest`
+
+		rows, err := tx.Query(q, uID)
+		if err != nil {
+			return fmt.Errorf("failed to query training_maxes: %w", err)
+		}
+		if tms, err = trainingMaxes(rows); err != nil {
+			return fmt.Errorf("failed to scan training_maxes: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set training maxes: %w", err)
+	}
+	return tms, nil
+}
+
+func trainingMaxes(rows *sql.Rows) ([]*fto.TrainingMax, error) {
+	defer rows.Close()
+
+	var tms []*fto.TrainingMax
+	for rows.Next() {
+		var tm fto.TrainingMax
+		if err := rows.Scan(&tm.Exercise, &sqlWeight{&tm.Max}); err != nil {
+			return nil, fmt.Errorf("failed to scan training max: %w", err)
+		}
+		tms = append(tms, &tm)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan training maxes: %w", err)
+	}
+	return tms, nil
 }
 
 func New(dbPath, migrationsPath string) (*DB, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_loc=UTC")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite DB: %w", err)
 	}
@@ -67,7 +232,12 @@ func New(dbPath, migrationsPath string) (*DB, error) {
 		return nil, cleanupOnError(errors.New("database was marked dirty"))
 	}
 
-	if err := m.Up(); err != nil {
+	switch err := m.Up(); {
+	case err == nil:
+		// Fine, good.
+	case errors.Is(err, migrate.ErrNoChange):
+		log.Print("No new migrations to apply")
+	default:
 		return nil, cleanupOnError(fmt.Errorf("failed to migrate database up: %w", err))
 	}
 

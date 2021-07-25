@@ -2,9 +2,26 @@
 // for doing exercise stuff.
 package fto
 
-import "time"
+import (
+	"errors"
+	"strconv"
+	"time"
+)
 
-type UserID int64
+var (
+	ErrUserNotFound = errors.New("user not found")
+)
+
+type UserID uint64
+
+func (uID UserID) String() string {
+	return strconv.FormatUint(uint64(uID), 10)
+}
+
+type User struct {
+	ID   UserID
+	Name string
+}
 
 type Exercise string
 
@@ -12,7 +29,7 @@ const (
 	OverheadPress = Exercise("OVERHEAD_PRESS")
 	Squat         = Exercise("SQUAT")
 	BenchPress    = Exercise("BENCH_PRESS")
-	Deadlife      = Exercise("DEADLIFT")
+	Deadlift      = Exercise("DEADLIFT")
 )
 
 type SetType string
@@ -33,6 +50,11 @@ const (
 type Weight struct {
 	Unit  WeightUnit
 	Value int
+}
+
+type TrainingMax struct {
+	Max      Weight
+	Exercise Exercise
 }
 
 type Routine []*Workout
