@@ -27,7 +27,7 @@ func (c *cookies) UseSecure() bool {
 
 func main() {
 	var (
-		usersFile    = flag.String("users_file", "users.json", "Path to the JSON file containing a mapping from password -> user name")
+		usersFile    = flag.String("users_file", "users.json", "Path to the JSON file containing a mapping from password -> user name + routine")
 		hashKeyFile  = flag.String("hash_key_file", "hashkey.dat", "Path to the file containing our secure cookie hash key")
 		blockKeyFile = flag.String("block_key_file", "blockkey.dat", "Path to the file containing our secure cookie block key")
 		dev          = flag.Bool("dev", true, "Whether or not we're running in dev mode")
@@ -66,14 +66,14 @@ func main() {
 	log.Fatal(http.ListenAndServe(*addr, srv))
 }
 
-func loadUsers(usersFile string) (map[string]string, error) {
+func loadUsers(usersFile string) (map[string]*server.User, error) {
 	f, err := os.Open(usersFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open users file: %w", err)
 	}
 	defer f.Close()
 
-	var users map[string]string
+	var users map[string]*server.User
 	if err := json.NewDecoder(f).Decode(&users); err != nil {
 		return nil, fmt.Errorf("failed to parse users file as JSON: %w", err)
 	}

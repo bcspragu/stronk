@@ -4,6 +4,53 @@ function setActivePage(page) {
     active.classList.remove('active');
   }
   document.querySelector('.page.' + page).classList.add('active');
+
+  switch (page) {
+    case 'lifts':
+      // For lifts, we need to load the current lift.
+      loadNextLift();
+      break;
+  }
+}
+
+function loadNextLift() {
+  sendRequest('GET', '/api/nextLift', {}, function(rawResp, status) {
+    if (status !== 200) {
+      console.log('Error getting lifts', rawResp);
+      return;
+    }
+
+    var resp = JSON.parse(rawResp);
+    var liftHeader = document.getElementById('lift-header');
+    liftHeader.textContent = resp.WeekName + ' - ' + resp.DayName
+
+    var body = document.getElementById('lift-body');
+    var listEl = document.createElement('ul');
+
+    for (var i = 0; i < resp.Workout.length; i++) {
+      var mvmt = resp.Workout[i];
+      var mvmtEl = document.createElement('li');
+      var mvmtList = document.createElement('ul');
+      mvmtEl.textContent = mvmt.Exercise + ' - ' + mvmt.SetType;
+
+      for (var j = 0; j < mvmt.Sets.length; j++) {
+        var set = mvmt.Sets[j];
+        var setEl = document.createElement('li');
+        var setStr = set.RepTarget;
+        if (set.ToFailure) {
+          setStr += '+';
+        }
+        setStr += ' @ ' + set.TrainingMaxPercentage + '%';
+        setEl.textContent = setStr;
+
+        mvmtList.appendChild(setEl);
+      }
+      mvmtEl.appendChild(mvmtList)
+      listEl.appendChild(mvmtEl);
+    }
+
+    body.appendChild(listEl);
+  });
 }
 
 function sendRequest(method, url, jsonData, callback) {

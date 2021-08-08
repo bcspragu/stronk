@@ -25,22 +25,28 @@ type DB interface {
 	User(id fto.UserID) (*fto.User, error)
 	UserByName(name string) (*fto.User, error)
 
-	RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string) error
+	RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error
 	SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto.Weight) error
 	TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error)
+	RecentLifts(uID fto.UserID) ([]*fto.Lift, error)
+}
+
+type User struct {
+	Name    string       `json:"name"`
+	Routine *fto.Routine `json:"routine"`
 }
 
 type Server struct {
 	mux *http.ServeMux
 
-	users   map[string]string
+	users   map[string]*User
 	cookies SecureCookie
 	db      DB
 
 	staticFrontendDir string
 }
 
-func New(users map[string]string, sc SecureCookie, db DB, staticFrontendDir string) *Server {
+func New(users map[string]*User, sc SecureCookie, db DB, staticFrontendDir string) *Server {
 	s := &Server{
 		users:   users,
 		cookies: sc,
@@ -61,6 +67,7 @@ func (s *Server) initMux() {
 	mux.HandleFunc("/api/login", s.serveLogin)
 	mux.HandleFunc("/api/user", s.serveUser)
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
+	mux.HandleFunc("/api/nextLift", s.serveNextLift)
 
 	if s.staticFrontendDir != "" {
 		mux.Handle("/", http.FileServer(http.Dir(s.staticFrontendDir)))
@@ -83,27 +90,38 @@ func (s *Server) serveLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	name, ok := s.users[req.Password]
+	user, ok := s.users[req.Password]
 	if !ok {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	user, err := s.db.UserByName(name)
+	usr, err := s.db.UserByName(user.Name)
 	if errors.Is(err, fto.ErrUserNotFound) {
-		uID, err := s.db.CreateUser(name)
+		uID, err := s.db.CreateUser(user.Name)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		user = &fto.User{ID: uID, Name: name}
+		usr = &fto.User{ID: uID, Name: user.Name}
 	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	fmt.Println("ROUTINE", user.Routine.Name)
+	for _, wk := range user.Routine.Weeks {
+		fmt.Println("WEEK", wk.WeekName)
+		for _, dy := range wk.Days {
+			fmt.Println("DAY", dy.DayOfWeek.String())
+			for _, mvmt := range dy.Movements {
+				fmt.Println("MOVEMENT", mvmt.Exercise, mvmt.SetType, len(mvmt.Sets))
+			}
+		}
+	}
+
 	value := map[string]string{
-		"user_id": user.ID.String(),
+		"user_id": usr.ID.String(),
 	}
 	encoded, err := s.cookies.Encode("auth", value)
 	if err != nil {
@@ -257,6 +275,182 @@ func parseTM(in string) (fto.Weight, error) {
 		Unit:  fto.DeciPounds,
 		Value: whole*10 + frac,
 	}, nil
+}
+
+func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	u, err := s.userFromRequest(r)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to load user from request: %v", err), http.StatusUnauthorized)
+		return
+	}
+
+	// Load the user's routine
+	var user *User
+	for _, srvUser := range s.users {
+		if srvUser.Name == u.Name {
+			user = srvUser
+		}
+	}
+
+	if user == nil {
+		http.Error(w, "No user/routine found", http.StatusBadRequest)
+		return
+	}
+
+	// Now the tricky part - we need to figure out the last one that a user
+	// actually completed. Here's our strategy for doing so
+	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
+	//  2. Correlate that with the routine, using ~~magic~~ (read: bad and hacky heuristics)
+	lifts, err := s.db.RecentLifts(u.ID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to load recent lifts: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Load the latest day
+	var day, week, iter int
+	if len(lifts) > 0 {
+		latest := lifts[0]
+		day, week, iter = latest.DayNumber, latest.WeekNumber, latest.IterationNumber
+	}
+
+	// Load the day from the routine.
+	if week >= len(user.Routine.Weeks) {
+		http.Error(w, "Lift was for week that doesn't exist in routine", http.StatusBadRequest)
+		return
+	}
+
+	if day >= len(user.Routine.Weeks[week].Days) {
+		http.Error(w, "Lift was for day that doesn't exist in routine", http.StatusBadRequest)
+		return
+	}
+
+	dayRoutine := user.Routine.Weeks[week].Days[day]
+
+	type nextLiftResp struct {
+		DayNumber         int
+		WeekNumber        int
+		IterationNumber   int
+		DayName           string
+		WeekName          string
+		Workout           []*fto.Movement
+		NextMovementIndex int
+		NextSetIndex      int
+	}
+
+	// Now we need to figure out if we finished the day's lifts or not.
+	dayLifts := filterLifts(lifts, day, week, iter)
+	set := lastSetDone(day, week, iter, dayLifts, dayRoutine)
+
+	// Go to the next set in the movement if we have one.
+	// If not, go to the next movement in the routine if we have one.
+	// If not, go to the next day in the week if we have one.
+	// If not, go to the next week in the iteration if we have one.
+	// If not, go to the next iteration, which we can always do.
+	if set.SetIndex < len(dayRoutine.Movements[set.MovementIndex].Sets)-1 {
+		set.SetIndex++
+	} else if set.MovementIndex < len(dayRoutine.Movements)-1 {
+		set.SetIndex = 0
+		set.MovementIndex++
+	} else if day < len(user.Routine.Weeks[week].Days)-1 {
+		set.SetIndex = 0
+		set.MovementIndex = 0
+		day++
+	} else if week < len(user.Routine.Weeks)-1 {
+		set.SetIndex = 0
+		set.MovementIndex = 0
+		day = 0
+		week++
+	} else {
+		set.SetIndex = 0
+		set.MovementIndex = 0
+		day = 0
+		week = 0
+		iter++
+	}
+
+	jsonResp(w, nextLiftResp{
+		DayNumber:         day,
+		WeekNumber:        week,
+		IterationNumber:   iter,
+		DayName:           dayRoutine.DayName,
+		WeekName:          user.Routine.Weeks[week].WeekName,
+		Workout:           dayRoutine.Movements,
+		NextMovementIndex: set.MovementIndex,
+		NextSetIndex:      set.SetIndex,
+	})
+}
+
+type lastSet struct {
+	MovementIndex int
+	SetIndex      int
+	NoneDone      bool
+}
+
+func lastSetDone(day, week, iter int, lifts []*fto.Lift, dayRoutine *fto.WorkoutDay) lastSet {
+	// If we have no recorded lifts for the day, it's safe to say the first
+	// movement to do is the first movement we have.
+	if len(lifts) == 0 {
+		return lastSet{NoneDone: true}
+	}
+
+	// We want to match up lifts with our workout to see where we are.
+	idx := len(lifts) - 1
+	for i, mvmt := range dayRoutine.Movements {
+		// Note that we don't actually look at the set info (reps, failure, etc),
+		// moreso just the number of sets because there are lots of practical
+		// reasons that those things might not match up.
+		for j, _ := range mvmt.Sets {
+			lift := lifts[idx]
+
+			// See if the recorded lift matches this.
+			// If it doesn't, we just skip forward to the next exercise of the day.
+			if lift.Exercise != mvmt.Exercise {
+				break
+			}
+			if lift.SetType != mvmt.SetType {
+				break
+			}
+
+			// If the set type and exercise match, there's a good chance that this
+			// lift corresponds to a set of this routine.
+			idx--
+			if idx < 0 {
+				// We've gone through all recorded lifts, meaning that this is the last
+				// set we did.
+				return lastSet{
+					MovementIndex: i,
+					SetIndex:      j,
+					NoneDone:      false,
+				}
+			}
+		}
+	}
+
+	// If we're here, we had lifts that we hadn't looked at, but we went through
+	// all the movements. I don't think this should happen, but I guess it means
+	// we're done with the day?
+	lastMvmt := dayRoutine.Movements[len(dayRoutine.Movements)-1]
+	return lastSet{
+		MovementIndex: len(dayRoutine.Movements) - 1,
+		SetIndex:      len(lastMvmt.Sets) - 1,
+		NoneDone:      false,
+	}
+}
+
+func filterLifts(lifts []*fto.Lift, day, week, iter int) []*fto.Lift {
+	var out []*fto.Lift
+	for _, lift := range lifts {
+		if lift.DayNumber == day && lift.WeekNumber == week && lift.IterationNumber == iter {
+			out = append(out, lift)
+		}
+	}
+	return out
 }
 
 func (s *Server) authFromRequest(r *http.Request) (fto.UserID, error) {

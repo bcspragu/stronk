@@ -23,6 +23,15 @@ type User struct {
 	Name string
 }
 
+func MainExercises() []Exercise {
+	return []Exercise{
+		OverheadPress,
+		Squat,
+		BenchPress,
+		Deadlift,
+	}
+}
+
 type Exercise string
 
 const (
@@ -57,9 +66,18 @@ type TrainingMax struct {
 	Exercise Exercise
 }
 
-type Routine []*Workout
+type Routine struct {
+	Name  string
+	Weeks []*WorkoutWeek
+}
 
-type Workout struct {
+type WorkoutWeek struct {
+	WeekName string
+	Days     []*WorkoutDay
+}
+
+type WorkoutDay struct {
+	DayName   string
 	DayOfWeek time.Weekday
 	Movements []*Movement
 }
@@ -72,6 +90,9 @@ type Movement struct {
 
 type Set struct {
 	RepTarget int
+	// ToFailure indicates if this set should go until no more reps can be done.
+	// If true, usually indicated with a "+" in the UI, like "5+"
+	ToFailure bool
 	// TrainingMaxPercentage is a number between 0 and 100 indicating what
 	// portion of your training max this lift is going for.
 	TrainingMaxPercentage int
@@ -85,4 +106,12 @@ type Lift struct {
 	Reps      int
 	Note      string
 	UserID    UserID
+
+	// Day - 0, 1, 2, ... in a given week
+	// Week - 0, 1, 2, ... in a given iteration
+	// Iteration - 0, 1, 2, ... basically how many times you've gone through the
+	// routine
+	DayNumber       int
+	WeekNumber      int
+	IterationNumber int
 }

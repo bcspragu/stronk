@@ -24,8 +24,18 @@ func (sw *sqlWeight) Scan(val interface{}) error {
 		return errors.New("weight should always be set")
 	}
 
+	// We probably don't need both []byte and string, but I swear []byte was
+	// working, but it recently started failing and expected string instead.
+	// :shrug:
 	switch v := val.(type) {
 	case []byte:
+		w, err := parseWeight(string(v))
+		if err != nil {
+			return fmt.Errorf("failed to parse weight: %w", err)
+		}
+		*sw.w = w
+		return nil
+	case string:
 		w, err := parseWeight(v)
 		if err != nil {
 			return fmt.Errorf("failed to parse weight: %w", err)
@@ -37,8 +47,8 @@ func (sw *sqlWeight) Scan(val interface{}) error {
 	}
 }
 
-func parseWeight(v []byte) (fto.Weight, error) {
-	ps := strings.Split(string(v), ":")
+func parseWeight(v string) (fto.Weight, error) {
+	ps := strings.Split(v, ":")
 	if n := len(ps); n != 2 {
 		return fto.Weight{}, fmt.Errorf("malformed weight had %d parts", n)
 	}
