@@ -10,6 +10,8 @@ COPY db/ /project/db
 COPY fto/ /project/fto
 COPY server/ /project/server
 COPY testing/ /project/testing
+# Needed for testing
+COPY routine.json /project
 
 RUN go test ./... && GOOS=linux go build -ldflags "-linkmode external -extldflags -static" -o fivethreeone .
 

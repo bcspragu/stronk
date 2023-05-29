@@ -4,7 +4,8 @@ package fto
 
 import (
 	"errors"
-	"time"
+	"fmt"
+	"strconv"
 )
 
 var (
@@ -50,6 +51,16 @@ type Weight struct {
 	Value int
 }
 
+func (w *Weight) String() string {
+	if w.Unit != DeciPounds {
+		return "UNKNOWN_UNIT"
+	}
+	if w.Value%10 == 0 {
+		return strconv.Itoa(w.Value / 10)
+	}
+	return fmt.Sprintf("%d.%d", w.Value/10, w.Value%10)
+}
+
 type TrainingMax struct {
 	Max      Weight
 	Exercise Exercise
@@ -81,6 +92,7 @@ func cloneWeeks(weeks []*WorkoutWeek) []*WorkoutWeek {
 
 type WorkoutWeek struct {
 	WeekName string
+	Optional bool
 	Days     []*WorkoutDay
 }
 
@@ -91,6 +103,7 @@ func (w *WorkoutWeek) Clone() *WorkoutWeek {
 
 	return &WorkoutWeek{
 		WeekName: w.WeekName,
+		Optional: w.Optional,
 		Days:     cloneDays(w.Days),
 	}
 }
@@ -105,7 +118,6 @@ func cloneDays(days []*WorkoutDay) []*WorkoutDay {
 
 type WorkoutDay struct {
 	DayName   string
-	DayOfWeek time.Weekday
 	Movements []*Movement
 }
 
@@ -116,7 +128,6 @@ func (w *WorkoutDay) Clone() *WorkoutDay {
 
 	return &WorkoutDay{
 		DayName:   w.DayName,
-		DayOfWeek: w.DayOfWeek,
 		Movements: cloneMovements(w.Movements),
 	}
 }

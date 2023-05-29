@@ -200,10 +200,21 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.nextLiftResponse(s.routine, w, r)
+	s.nextLiftResponse(w)
 }
 
-func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r *http.Request) {
+type nextLiftResp struct {
+	DayNumber         int
+	WeekNumber        int
+	IterationNumber   int
+	DayName           string
+	WeekName          string
+	Workout           []*fto.Movement
+	NextMovementIndex int
+	NextSetIndex      int
+}
+
+func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 	// Now the tricky part - we need to figure out the last one that a user
 	// actually completed. Here's our strategy for doing so
 	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
@@ -221,6 +232,8 @@ func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r
 		day, week, iter = latest.DayNumber, latest.WeekNumber, latest.IterationNumber
 	}
 
+	routine := s.routine
+
 	// Load the day from the routine.
 	if week >= len(routine.Weeks) {
 		http.Error(w, "Lift was for week that doesn't exist in routine", http.StatusBadRequest)
@@ -233,17 +246,6 @@ func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r
 	}
 
 	dayRoutine := routine.Weeks[week].Days[day]
-
-	type nextLiftResp struct {
-		DayNumber         int
-		WeekNumber        int
-		IterationNumber   int
-		DayName           string
-		WeekName          string
-		Workout           []*fto.Movement
-		NextMovementIndex int
-		NextSetIndex      int
-	}
 
 	// Now we need to figure out if we finished the day's lifts or not.
 	dayLifts := filterLifts(lifts, day, week, iter)
@@ -265,7 +267,6 @@ func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r
 		set.SetIndex = 0
 		set.MovementIndex = 0
 		day++
-		dayRoutine = routine.Weeks[week].Days[day]
 	} else if week < len(routine.Weeks)-1 {
 		set.SetIndex = 0
 		set.MovementIndex = 0
@@ -278,6 +279,8 @@ func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r
 		week = 0
 		iter++
 	}
+	// Update our day routine, which may very well have changed.
+	dayRoutine = routine.Weeks[week].Days[day]
 
 	// Now, load the smallest denom and training maxes, to set the target weights.
 	tms, err := s.db.TrainingMaxes()
@@ -348,22 +351,22 @@ func roundWeight(trainingMax fto.Weight, percent int, smallestDenom fto.Weight) 
 	}
 }
 
+type recordReq struct {
+	Exercise  fto.Exercise `json:"exercise"`
+	SetType   fto.SetType  `json:"set_type"`
+	Weight    string       `json:"weight"`
+	Set       int          `json:"set"`
+	Reps      int          `json:"reps"`
+	Note      string       `json:"note"`
+	Day       int          `json:"day"`
+	Week      int          `json:"week"`
+	Iteration int          `json:"iteration"`
+}
+
 func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
 		return
-	}
-
-	type recordReq struct {
-		Exercise  fto.Exercise `json:"exercise"`
-		SetType   fto.SetType  `json:"set_type"`
-		Weight    string       `json:"weight"`
-		Set       int          `json:"set"`
-		Reps      int          `json:"reps"`
-		Note      string       `json:"note"`
-		Day       int          `json:"day"`
-		Week      int          `json:"week"`
-		Iteration int          `json:"iteration"`
 	}
 
 	// We assume the client returns the units in pounds.
@@ -384,7 +387,7 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.nextLiftResponse(s.routine, w, r)
+	s.nextLiftResponse(w)
 }
 
 type lastSet struct {

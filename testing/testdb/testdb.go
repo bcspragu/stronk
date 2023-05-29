@@ -11,42 +11,58 @@ func New() *DB {
 	return &DB{}
 }
 
+type lift struct {
+	*fto.Lift
+	idx int
+}
+
 type DB struct {
-	lifts          []*fto.Lift
+	lifts          []lift
 	trainingMaxes  []*fto.TrainingMax
 	smallestDenoms []fto.Weight
 }
 
 func (db *DB) RecentLifts() ([]*fto.Lift, error) {
-	lifts := make([]*fto.Lift, len(db.lifts))
+	lifts := make([]lift, len(db.lifts))
 	copy(lifts, db.lifts)
 
 	sort.Slice(lifts, func(i, j int) bool {
 		if lifts[i].IterationNumber != lifts[j].IterationNumber {
-			return lifts[i].IterationNumber < lifts[j].IterationNumber
+			return lifts[i].IterationNumber > lifts[j].IterationNumber
 		}
 
 		if lifts[i].WeekNumber != lifts[j].WeekNumber {
-			return lifts[i].WeekNumber < lifts[j].WeekNumber
+			return lifts[i].WeekNumber > lifts[j].WeekNumber
 		}
 
-		return lifts[i].DayNumber < lifts[j].DayNumber
+		if lifts[i].DayNumber != lifts[j].DayNumber {
+			return lifts[i].DayNumber > lifts[j].DayNumber
+		}
+		return lifts[i].idx > lifts[j].idx
 	})
 
-	return lifts, nil
+	var out []*fto.Lift
+	for _, l := range lifts {
+		out = append(out, l.Lift)
+	}
+
+	return out, nil
 }
 
 func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
-	db.lifts = append(db.lifts, &fto.Lift{
-		Exercise:        ex,
-		SetType:         st,
-		Weight:          weight,
-		SetNumber:       set,
-		Reps:            reps,
-		DayNumber:       day,
-		WeekNumber:      week,
-		IterationNumber: iter,
-		Note:            note,
+	db.lifts = append(db.lifts, lift{
+		Lift: &fto.Lift{
+			Exercise:        ex,
+			SetType:         st,
+			Weight:          weight,
+			SetNumber:       set,
+			Reps:            reps,
+			DayNumber:       day,
+			WeekNumber:      week,
+			IterationNumber: iter,
+			Note:            note,
+		},
+		idx: len(db.lifts),
 	})
 	return nil
 }
