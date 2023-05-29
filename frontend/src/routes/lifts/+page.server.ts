@@ -1,3 +1,6 @@
+import { PUBLIC_API_BASE_URL } from '$env/static/public';
+import { browser } from '$app/environment';
+
 interface Weight {
 	Unit: string;
 	Value: number;
@@ -29,7 +32,8 @@ interface NextLiftResponse {
 
 /** @type {import('./$types').PageLoad} */
 export async function load({ fetch }) {
-	const res = await fetch('http://localhost:8080/api/nextLift');
+	const baseURL = browser ? '' : PUBLIC_API_BASE_URL;
+	const res = await fetch(`${baseURL}/api/nextLift`);
 	const data: NextLiftResponse = await res.json();
 	return data;
 }

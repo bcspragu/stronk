@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import type { Movement, Set } from './+page.server';
+	import { PUBLIC_API_BASE_URL } from '$env/static/public';
+	import { browser } from '$app/environment';
 
 	export let data: PageData;
 
@@ -57,7 +59,8 @@
 			iteration: data.IterationNumber
 		};
 
-		fetch('http://localhost:8080/api/recordLift', { method: 'POST', body: JSON.stringify(req) })
+		const baseURL = browser ? '' : PUBLIC_API_BASE_URL;
+		fetch(`${baseURL}/api/recordLift`, { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json())
 			.then((dat) => (data = dat))
 			.finally(() => (note = ''));

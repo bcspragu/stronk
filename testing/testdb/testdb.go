@@ -8,48 +8,18 @@ import (
 )
 
 func New() *DB {
-	return &DB{
-		lifts:          make(map[fto.UserID][]*fto.Lift),
-		trainingMaxes:  make(map[fto.UserID][]*fto.TrainingMax),
-		smallestDenoms: make(map[fto.UserID][]fto.Weight),
-	}
+	return &DB{}
 }
 
 type DB struct {
-	users          []*fto.User
-	lifts          map[fto.UserID][]*fto.Lift
-	trainingMaxes  map[fto.UserID][]*fto.TrainingMax
-	smallestDenoms map[fto.UserID][]fto.Weight
+	lifts          []*fto.Lift
+	trainingMaxes  []*fto.TrainingMax
+	smallestDenoms []fto.Weight
 }
 
-func (db *DB) CreateUser(name string) (fto.UserID, error) {
-	id := fto.UserID(len(db.users))
-	db.users = append(db.users, &fto.User{
-		ID:   id,
-		Name: name,
-	})
-	return id, nil
-}
-
-func (db *DB) User(id fto.UserID) (*fto.User, error) {
-	idx := int(id)
-	if idx >= len(db.users) {
-		return nil, fto.ErrUserNotFound
-	}
-	return db.users[idx], nil
-}
-
-func (db *DB) UserByName(name string) (*fto.User, error) {
-	for _, u := range db.users {
-		if u.Name == name {
-			return u, nil
-		}
-	}
-	return nil, fto.ErrUserNotFound
-}
-
-func (db *DB) RecentLifts(uID fto.UserID) ([]*fto.Lift, error) {
-	lifts := db.lifts[uID]
+func (db *DB) RecentLifts() ([]*fto.Lift, error) {
+	lifts := make([]*fto.Lift, len(db.lifts))
+	copy(lifts, db.lifts)
 
 	sort.Slice(lifts, func(i, j int) bool {
 		if lifts[i].IterationNumber != lifts[j].IterationNumber {
@@ -66,9 +36,8 @@ func (db *DB) RecentLifts(uID fto.UserID) ([]*fto.Lift, error) {
 	return lifts, nil
 }
 
-func (db *DB) RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
-	db.lifts[uID] = append(db.lifts[uID], &fto.Lift{
-		UserID:          uID,
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
+	db.lifts = append(db.lifts, &fto.Lift{
 		Exercise:        ex,
 		SetType:         st,
 		Weight:          weight,
@@ -82,8 +51,8 @@ func (db *DB) RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight
 	return nil
 }
 
-func (db *DB) SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto.Weight) error {
-	db.trainingMaxes[uID] = append(db.trainingMaxes[uID],
+func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {
+	db.trainingMaxes = append(db.trainingMaxes,
 		&fto.TrainingMax{Exercise: fto.OverheadPress, Max: press},
 		&fto.TrainingMax{Exercise: fto.Squat, Max: squat},
 		&fto.TrainingMax{Exercise: fto.BenchPress, Max: bench},
@@ -92,12 +61,12 @@ func (db *DB) SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto
 	return nil
 }
 
-func (db *DB) TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error) {
+func (db *DB) TrainingMaxes() ([]*fto.TrainingMax, error) {
 	var (
 		out   []*fto.TrainingMax
 		found = make(map[fto.Exercise]bool)
 	)
-	tms := db.trainingMaxes[uID]
+	tms := db.trainingMaxes
 	for i := len(tms) - 1; i >= 0; i-- {
 		tm := tms[i]
 		if found[tm.Exercise] {
@@ -110,13 +79,13 @@ func (db *DB) TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error) {
 	return out, nil
 }
 
-func (db *DB) SetSmallestDenom(uID fto.UserID, small fto.Weight) error {
-	db.smallestDenoms[uID] = append(db.smallestDenoms[uID], small)
+func (db *DB) SetSmallestDenom(small fto.Weight) error {
+	db.smallestDenoms = append(db.smallestDenoms, small)
 	return nil
 }
 
-func (db *DB) SmallestDenom(uID fto.UserID) (fto.Weight, error) {
-	denoms := db.smallestDenoms[uID]
+func (db *DB) SmallestDenom() (fto.Weight, error) {
+	denoms := db.smallestDenoms
 	if len(denoms) == 0 {
 		return fto.Weight{}, fto.ErrNoSmallestDenom
 	}

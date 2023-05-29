@@ -1,83 +1,12 @@
 package server
 
 import (
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/lexacali/fivethreeone/fto"
-	"github.com/lexacali/fivethreeone/testing/testcookie"
 	"github.com/lexacali/fivethreeone/testing/testdb"
 )
-
-const (
-	loginTestReq = `{
-	"password": "test"
-}`
-)
-
-func TestAuth(t *testing.T) {
-	srv, env := setup()
-
-	r := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(loginTestReq))
-	w := httptest.NewRecorder()
-	srv.serveLogin(w, r)
-
-	resp := w.Result()
-	if status := resp.StatusCode; status != http.StatusOK {
-		t.Fatalf("unexpected response code from server %d, wanted OK", status)
-	}
-
-	cookie := getCookie(t, "auth", resp.Cookies())
-
-	var cookieVal map[string]string
-	if err := env.sc.Decode("auth", cookie.Value, &cookieVal); err != nil {
-		t.Fatalf("failed to decode auth cookie: %v", err)
-	}
-
-	wantCookieVal := map[string]string{
-		"user_id": "0",
-	}
-
-	if diff := cmp.Diff(wantCookieVal, cookieVal); diff != "" {
-		t.Errorf("unexpected cookie val (-want +got)\n%s", diff)
-	}
-
-	// Now, use that auth to get user information.
-	r2 := httptest.NewRequest(http.MethodGet, "/api/user", nil)
-	r2.AddCookie(cookie)
-	w2 := httptest.NewRecorder()
-	srv.serveUser(w2, r2)
-
-	resp2 := w.Result()
-	if status := resp2.StatusCode; status != http.StatusOK {
-		t.Fatalf("unexpected response code from server %d, wanted OK", status)
-	}
-
-	// Check the DB and make sure we find our user.
-	gotUser, err := env.db.User(0)
-	if err != nil {
-		t.Fatalf("failed to load user: %v", err)
-	}
-
-	wantUser := &fto.User{ID: 0, Name: "Testy McTesterson"}
-
-	if diff := cmp.Diff(wantUser, gotUser); diff != "" {
-		t.Errorf("unexpected user returned (-want +got)\n%s", diff)
-	}
-}
-
-func getCookie(t *testing.T, name string, cookies []*http.Cookie) *http.Cookie {
-	for _, c := range cookies {
-		if c.Name == name {
-			return c
-		}
-	}
-	t.Fatalf("cookie with name %q was not found", name)
-	return nil
-}
 
 func TestParsePounds(t *testing.T) {
 	wt := func(in int) fto.Weight {
@@ -280,21 +209,11 @@ func TestRoundWeight(t *testing.T) {
 }
 
 type testEnv struct {
-	users map[string]*User
-	sc    *testcookie.SecureCookie
-	db    *testdb.DB
+	db *testdb.DB
 }
 
 func setup() (*Server, *testEnv) {
-	env := &testEnv{
-		users: map[string]*User{
-			"test": &User{
-				Name: "Testy McTesterson",
-			},
-		},
-		sc: testcookie.New(),
-		db: testdb.New(),
-	}
+	env := &testEnv{db: testdb.New()}
 
-	return New(env.users, env.sc, env.db, ""), env
+	return New(&fto.Routine{}, env.db), env
 }
