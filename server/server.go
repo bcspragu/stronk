@@ -2,12 +2,10 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/lexacali/fivethreeone/fto"
 )
@@ -21,38 +19,26 @@ type SecureCookie interface {
 }
 
 type DB interface {
-	CreateUser(name string) (fto.UserID, error)
-	User(id fto.UserID) (*fto.User, error)
-	UserByName(name string) (*fto.User, error)
-
-	RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error
-	SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto.Weight) error
-	TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error)
-	RecentLifts(uID fto.UserID) ([]*fto.Lift, error)
-}
-
-type User struct {
-	Name    string       `json:"name"`
-	Routine *fto.Routine `json:"routine"`
+	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error
+	SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error
+	SetSmallestDenom(small fto.Weight) error
+	TrainingMaxes() ([]*fto.TrainingMax, error)
+	SmallestDenom() (fto.Weight, error)
+	RecentLifts() ([]*fto.Lift, error)
 }
 
 type Server struct {
 	mux *http.ServeMux
 
-	users   map[string]*User
+	routine *fto.Routine
 	cookies SecureCookie
 	db      DB
-
-	staticFrontendDir string
 }
 
-func New(users map[string]*User, sc SecureCookie, db DB, staticFrontendDir string) *Server {
+func New(routine *fto.Routine, db DB) *Server {
 	s := &Server{
-		users:   users,
-		cookies: sc,
+		routine: routine,
 		db:      db,
-
-		staticFrontendDir: staticFrontendDir,
 	}
 	s.initMux()
 	return s
@@ -64,79 +50,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) initMux() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/login", s.serveLogin)
 	mux.HandleFunc("/api/user", s.serveUser)
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
 	mux.HandleFunc("/api/nextLift", s.serveNextLift)
-
-	if s.staticFrontendDir != "" {
-		mux.Handle("/", http.FileServer(http.Dir(s.staticFrontendDir)))
-	}
+	mux.HandleFunc("/api/recordLift", s.serveRecordLift)
 
 	s.mux = mux
-}
-
-func (s *Server) serveLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Bad request", http.StatusBadRequest)
-		return
-	}
-
-	user, ok := s.users[req.Password]
-	if !ok {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	usr, err := s.db.UserByName(user.Name)
-	if errors.Is(err, fto.ErrUserNotFound) {
-		uID, err := s.db.CreateUser(user.Name)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		usr = &fto.User{ID: uID, Name: user.Name}
-	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	fmt.Println("ROUTINE", user.Routine.Name)
-	for _, wk := range user.Routine.Weeks {
-		fmt.Println("WEEK", wk.WeekName)
-		for _, dy := range wk.Days {
-			fmt.Println("DAY", dy.DayOfWeek.String())
-			for _, mvmt := range dy.Movements {
-				fmt.Println("MOVEMENT", mvmt.Exercise, mvmt.SetType, len(mvmt.Sets))
-			}
-		}
-	}
-
-	value := map[string]string{
-		"user_id": usr.ID.String(),
-	}
-	encoded, err := s.cookies.Encode("auth", value)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	cookie := &http.Cookie{
-		Name:     "auth",
-		Value:    encoded,
-		Path:     "/",
-		Secure:   s.cookies.UseSecure(),
-		HttpOnly: true,
-		Expires:  time.Now().Add(time.Hour * 24 * 365 * 100),
-	}
-	http.SetCookie(w, cookie)
 }
 
 func (s *Server) serveUser(w http.ResponseWriter, r *http.Request) {
@@ -145,32 +64,15 @@ func (s *Server) serveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uID, err := s.authFromRequest(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-
-	u, err := s.db.User(uID)
-	if errors.Is(err, fto.ErrUserNotFound) {
-		// Treat this as though they aren't logged in.
-		http.Error(w, "not logged in", http.StatusUnauthorized)
-		return
-	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	tms, err := s.db.TrainingMaxes(uID)
+	tms, err := s.db.TrainingMaxes()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	jsonResp(w, struct {
-		User          *fto.User
 		TrainingMaxes []*fto.TrainingMax
-	}{u, tms})
+	}{tms})
 }
 
 func jsonResp(w http.ResponseWriter, resp interface{}) {
@@ -186,20 +88,15 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.userFromRequest(r)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load user from request: %v", err), http.StatusUnauthorized)
-		return
-	}
-
 	type tmReq struct {
-		PressTM    string `json:"overhead_press"`
-		SquatTM    string `json:"squat"`
-		BenchTM    string `json:"bench_press"`
-		DeadliftTM string `json:"deadlift"`
+		PressTM       string `json:"overhead_press"`
+		SquatTM       string `json:"squat"`
+		BenchTM       string `json:"bench_press"`
+		DeadliftTM    string `json:"deadlift"`
+		SmallestDenom string `json:"smallest_denom"`
 	}
 
-	// We assume the client returns the units in deci-pounds for us
+	// We assume the client returns the units in pounds.
 	var req tmReq
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -207,13 +104,14 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var err error
 	parseLocalTM := func(in string) fto.Weight {
 		if err != nil {
 			return fto.Weight{}
 		}
 
 		var w fto.Weight
-		if w, err = parseTM(in); err != nil {
+		if w, err = parsePounds(in); err != nil {
 			return fto.Weight{}
 		}
 
@@ -229,15 +127,34 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.SetTrainingMaxes(u.ID, press, squat, bench, deadlift); err != nil {
+	var smallestDenom fto.Weight
+	switch req.SmallestDenom {
+	case "1.25":
+		smallestDenom = fto.Weight{Value: 25, Unit: fto.DeciPounds}
+	case "2.5":
+		smallestDenom = fto.Weight{Value: 50, Unit: fto.DeciPounds}
+	case "5":
+		smallestDenom = fto.Weight{Value: 100, Unit: fto.DeciPounds}
+	default:
+		// Unexpected, and bad.
+		http.Error(w, fmt.Sprintf("invalid smallest_denom %q", req.SmallestDenom), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.SetTrainingMaxes(press, squat, bench, deadlift); err != nil {
 		http.Error(w, fmt.Sprintf("failed to set training maxes: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.db.SetSmallestDenom(smallestDenom); err != nil {
+		http.Error(w, fmt.Sprintf("failed to set smallest denom: %v", err), http.StatusInternalServerError)
 		return
 	}
 }
 
-// parseTM takes in a string, like 177.5, and converts it to a deci-pound
+// parsePounds takes in a string, like 177.5, and converts it to a deci-pound
 // weight, like fto.Weight{Unit: fto.DeciPounds, Value: 1775}
-func parseTM(in string) (fto.Weight, error) {
+func parsePounds(in string) (fto.Weight, error) {
 	var wholeStr, fracStr string
 	if idx := strings.Index(in, "."); idx > -1 {
 		wholeStr, fracStr = in[:idx], in[idx+1:]
@@ -283,30 +200,15 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := s.userFromRequest(r)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load user from request: %v", err), http.StatusUnauthorized)
-		return
-	}
+	s.nextLiftResponse(s.routine, w, r)
+}
 
-	// Load the user's routine
-	var user *User
-	for _, srvUser := range s.users {
-		if srvUser.Name == u.Name {
-			user = srvUser
-		}
-	}
-
-	if user == nil {
-		http.Error(w, "No user/routine found", http.StatusBadRequest)
-		return
-	}
-
+func (s *Server) nextLiftResponse(routine *fto.Routine, w http.ResponseWriter, r *http.Request) {
 	// Now the tricky part - we need to figure out the last one that a user
 	// actually completed. Here's our strategy for doing so
 	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
 	//  2. Correlate that with the routine, using ~~magic~~ (read: bad and hacky heuristics)
-	lifts, err := s.db.RecentLifts(u.ID)
+	lifts, err := s.db.RecentLifts()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to load recent lifts: %v", err), http.StatusInternalServerError)
 		return
@@ -320,17 +222,17 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Load the day from the routine.
-	if week >= len(user.Routine.Weeks) {
+	if week >= len(routine.Weeks) {
 		http.Error(w, "Lift was for week that doesn't exist in routine", http.StatusBadRequest)
 		return
 	}
 
-	if day >= len(user.Routine.Weeks[week].Days) {
+	if day >= len(routine.Weeks[week].Days) {
 		http.Error(w, "Lift was for day that doesn't exist in routine", http.StatusBadRequest)
 		return
 	}
 
-	dayRoutine := user.Routine.Weeks[week].Days[day]
+	dayRoutine := routine.Weeks[week].Days[day]
 
 	type nextLiftResp struct {
 		DayNumber         int
@@ -353,15 +255,18 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 	// If not, go to the next week in the iteration if we have one.
 	// If not, go to the next iteration, which we can always do.
 	if set.SetIndex < len(dayRoutine.Movements[set.MovementIndex].Sets)-1 {
-		set.SetIndex++
+		if !set.NoneDone {
+			set.SetIndex++
+		}
 	} else if set.MovementIndex < len(dayRoutine.Movements)-1 {
 		set.SetIndex = 0
 		set.MovementIndex++
-	} else if day < len(user.Routine.Weeks[week].Days)-1 {
+	} else if day < len(routine.Weeks[week].Days)-1 {
 		set.SetIndex = 0
 		set.MovementIndex = 0
 		day++
-	} else if week < len(user.Routine.Weeks)-1 {
+		dayRoutine = routine.Weeks[week].Days[day]
+	} else if week < len(routine.Weeks)-1 {
 		set.SetIndex = 0
 		set.MovementIndex = 0
 		day = 0
@@ -374,16 +279,112 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 		iter++
 	}
 
+	// Now, load the smallest denom and training maxes, to set the target weights.
+	tms, err := s.db.TrainingMaxes()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to load training maxes: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	getTM := func(ex fto.Exercise) (fto.Weight, bool) {
+		for _, tm := range tms {
+			if tm.Exercise == ex {
+				return tm.Max, true
+			}
+		}
+		return fto.Weight{}, false
+	}
+
+	smallest, err := s.db.SmallestDenom()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to load smallest denom: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	mvmts := dayRoutine.Clone().Movements
+	for _, mvmt := range mvmts {
+		tm, ok := getTM(mvmt.Exercise)
+		if !ok {
+			// Just skip this one if we didn't set it.
+			continue
+		}
+		for _, set := range mvmt.Sets {
+			set.WeightTarget = roundWeight(tm, set.TrainingMaxPercentage, smallest)
+		}
+	}
+
 	jsonResp(w, nextLiftResp{
 		DayNumber:         day,
 		WeekNumber:        week,
 		IterationNumber:   iter,
 		DayName:           dayRoutine.DayName,
-		WeekName:          user.Routine.Weeks[week].WeekName,
-		Workout:           dayRoutine.Movements,
+		WeekName:          routine.Weeks[week].WeekName,
+		Workout:           mvmts,
 		NextMovementIndex: set.MovementIndex,
 		NextSetIndex:      set.SetIndex,
 	})
+}
+
+// roundWeight returns the percentage of the training max rounded to the
+// smallest weights you can use. If we're equally distant between two options,
+// we round up to get the most jacked.
+// E.g. roundWeight(1750DLB, 65%, 25DLB) = 1150DLB
+func roundWeight(trainingMax fto.Weight, percent int, smallestDenom fto.Weight) fto.Weight {
+	if trainingMax.Unit != smallestDenom.Unit {
+		panic(fmt.Sprintf("mismatched units %q and %q for training max and smallest denom", trainingMax.Unit, smallestDenom.Unit))
+	}
+
+	v := float64(trainingMax.Value) * float64(percent) / 100
+
+	// Find the nearest multiples above and below by dividing, truncating, and
+	// multiplying.
+	trunc := int(v / float64(smallestDenom.Value))
+	lower := trunc * smallestDenom.Value
+	upper := (trunc + 1) * smallestDenom.Value
+	if v-float64(lower) < float64(upper)-v {
+		return fto.Weight{Value: lower, Unit: trainingMax.Unit}
+	} else {
+		return fto.Weight{Value: upper, Unit: trainingMax.Unit}
+	}
+}
+
+func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type recordReq struct {
+		Exercise  fto.Exercise `json:"exercise"`
+		SetType   fto.SetType  `json:"set_type"`
+		Weight    string       `json:"weight"`
+		Set       int          `json:"set"`
+		Reps      int          `json:"reps"`
+		Note      string       `json:"note"`
+		Day       int          `json:"day"`
+		Week      int          `json:"week"`
+		Iteration int          `json:"iteration"`
+	}
+
+	// We assume the client returns the units in pounds.
+	var req recordReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	weight, err := parsePounds(req.Weight)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to parse weights: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration); err != nil {
+		http.Error(w, fmt.Sprintf("failed to record lift: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.nextLiftResponse(s.routine, w, r)
 }
 
 type lastSet struct {
@@ -405,7 +406,7 @@ func lastSetDone(day, week, iter int, lifts []*fto.Lift, dayRoutine *fto.Workout
 		// Note that we don't actually look at the set info (reps, failure, etc),
 		// moreso just the number of sets because there are lots of practical
 		// reasons that those things might not match up.
-		for j, _ := range mvmt.Sets {
+		for j := range mvmt.Sets {
 			lift := lifts[idx]
 
 			// See if the recorded lift matches this.
@@ -451,42 +452,4 @@ func filterLifts(lifts []*fto.Lift, day, week, iter int) []*fto.Lift {
 		}
 	}
 	return out
-}
-
-func (s *Server) authFromRequest(r *http.Request) (fto.UserID, error) {
-	cookie, err := r.Cookie("auth")
-	if err != nil {
-		return 0, fmt.Errorf("failed to load 'auth' cookie from request: %w", err)
-	}
-
-	value := make(map[string]string)
-	if err := s.cookies.Decode("auth", cookie.Value, &value); err != nil {
-		return 0, fmt.Errorf("failed to decode 'auth' cookie: %w", err)
-	}
-
-	idStr, ok := value["user_id"]
-	if !ok {
-		return 0, errors.New("no user ID was found in 'auth' cookie")
-	}
-
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid user ID in cookie: %w", err)
-	}
-
-	return fto.UserID(id), nil
-}
-
-func (s *Server) userFromRequest(r *http.Request) (*fto.User, error) {
-	uID, err := s.authFromRequest(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load auth from request: %w", err)
-	}
-
-	u, err := s.db.User(uID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load user with ID %d: %w", uID, err)
-	}
-
-	return u, nil
 }

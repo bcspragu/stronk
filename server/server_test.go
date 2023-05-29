@@ -79,7 +79,7 @@ func getCookie(t *testing.T, name string, cookies []*http.Cookie) *http.Cookie {
 	return nil
 }
 
-func TestParseTM(t *testing.T) {
+func TestParsePounds(t *testing.T) {
 	wt := func(in int) fto.Weight {
 		return fto.Weight{
 			Value: in,
@@ -158,17 +158,17 @@ func TestParseTM(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.in, func(t *testing.T) {
-			got, err := parseTM(test.in)
+			got, err := parsePounds(test.in)
 			if err != nil {
 				if test.wantErr {
 					// Expected.
 					return
 				}
-				t.Fatalf("parseTM(%q): %v", test.in, err)
+				t.Fatalf("parsePounds(%q): %v", test.in, err)
 			}
 
 			if test.wantErr {
-				t.Fatal("parseTM wanted an error, but none occurred")
+				t.Fatal("parsePounds wanted an error, but none occurred")
 			}
 
 			if diff := cmp.Diff(test.want, got); diff != "" {
@@ -178,16 +178,119 @@ func TestParseTM(t *testing.T) {
 	}
 }
 
+func TestRoundWeight(t *testing.T) {
+	wt := func(in int) fto.Weight {
+		return fto.Weight{
+			Value: in,
+			Unit:  fto.DeciPounds,
+		}
+	}
+
+	tests := []struct {
+		trainingMax   fto.Weight
+		percent       int
+		smallestDenom fto.Weight
+		want          fto.Weight
+	}{
+		{
+			trainingMax:   wt(1050),
+			percent:       85,
+			smallestDenom: wt(25),
+			want:          wt(900),
+		},
+		{
+			trainingMax:   wt(1050),
+			percent:       85,
+			smallestDenom: wt(50),
+			want:          wt(900),
+		},
+		{
+			trainingMax:   wt(2100),
+			percent:       85,
+			smallestDenom: wt(25),
+			want:          wt(1775),
+		},
+		{
+			trainingMax:   wt(2100),
+			percent:       85,
+			smallestDenom: wt(50),
+			want:          wt(1800),
+		},
+		{
+			trainingMax:   wt(1700),
+			percent:       85,
+			smallestDenom: wt(25),
+			want:          wt(1450),
+		},
+		{
+			trainingMax:   wt(1700),
+			percent:       85,
+			smallestDenom: wt(100),
+			want:          wt(1400),
+		},
+		{
+			trainingMax:   wt(2650),
+			percent:       85,
+			smallestDenom: wt(25),
+			want:          wt(2250),
+		},
+
+		{
+			trainingMax:   wt(1050),
+			percent:       90,
+			smallestDenom: wt(25),
+			want:          wt(950),
+		},
+
+		{
+			trainingMax:   wt(2100),
+			percent:       90,
+			smallestDenom: wt(25),
+			want:          wt(1900),
+		},
+
+		{
+			trainingMax:   wt(1700),
+			percent:       90,
+			smallestDenom: wt(25),
+			want:          wt(1525),
+		},
+
+		{
+			trainingMax:   wt(2650),
+			percent:       90,
+			smallestDenom: wt(25),
+			want:          wt(2375),
+		},
+
+		{
+			trainingMax:   wt(1050),
+			percent:       95,
+			smallestDenom: wt(25),
+			want:          wt(1000),
+		},
+	}
+
+	for _, test := range tests {
+		got := roundWeight(test.trainingMax, test.percent, test.smallestDenom)
+		if got != test.want {
+			t.Errorf("roundWeight(%q, %d, %q) = %q, want %q", test.trainingMax, test.percent, test.smallestDenom, got, test.want)
+		}
+	}
+}
+
 type testEnv struct {
-	users map[string]string
+	users map[string]*User
 	sc    *testcookie.SecureCookie
 	db    *testdb.DB
 }
 
 func setup() (*Server, *testEnv) {
 	env := &testEnv{
-		users: map[string]string{
-			"test": "Testy McTesterson",
+		users: map[string]*User{
+			"test": &User{
+				Name: "Testy McTesterson",
+			},
 		},
 		sc: testcookie.New(),
 		db: testdb.New(),

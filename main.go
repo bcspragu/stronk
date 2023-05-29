@@ -3,34 +3,27 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 
-	"github.com/gorilla/securecookie"
 	"github.com/lexacali/fivethreeone/db/sqldb"
+	"github.com/lexacali/fivethreeone/fto"
 	"github.com/lexacali/fivethreeone/server"
 	"github.com/namsral/flag"
+	"github.com/rs/cors"
 )
 
-// cookies is a thin wrapper around *securecookie.SecureCookie that implements
-// the server.SecureCookie interface.
-type cookies struct {
-	*securecookie.SecureCookie
-	dev bool
-}
-
-func (c *cookies) UseSecure() bool {
-	return !c.dev
-}
-
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	var (
-		usersFile    = flag.String("users_file", "users.json", "Path to the JSON file containing a mapping from password -> user name + routine")
-		hashKeyFile  = flag.String("hash_key_file", "hashkey.dat", "Path to the file containing our secure cookie hash key")
-		blockKeyFile = flag.String("block_key_file", "blockkey.dat", "Path to the file containing our secure cookie block key")
-		dev          = flag.Bool("dev", true, "Whether or not we're running in dev mode")
+		routineFile = flag.String("routine_file", "routine.json", "Path to the JSON file containing a routine")
 
 		dbFile       = flag.String("db_file", "fivethreeone.db", "Path to the SQLite database")
 		migrationDir = flag.String("migration_dir", "db/sqldb/migrations", "Path to the directory containing our migration set files")
@@ -39,82 +32,47 @@ func main() {
 	)
 	flag.Parse()
 
-	users, err := loadUsers(*usersFile)
+	routine, err := loadRoutine(*routineFile)
 	if err != nil {
-		log.Fatalf("failed to load users file: %v", err)
-	}
-
-	sc, err := loadSecureCookie(*hashKeyFile, *blockKeyFile)
-	if err != nil {
-		log.Fatalf("failed to load secure cookie: %v", err)
+		return fmt.Errorf("failed to load users file: %v", err)
 	}
 
 	db, err := sqldb.New(*dbFile, *migrationDir)
 	if err != nil {
-		log.Fatalf("failed to load SQLite db: %v", err)
+		return fmt.Errorf("failed to load SQLite db: %v", err)
 	}
 	defer db.Close()
 
-	var staticFrontendDir string
-	if *dev {
-		staticFrontendDir = "./frontend"
-	}
+	srv := server.New(routine, db)
 
-	srv := server.New(users, &cookies{SecureCookie: sc, dev: *dev}, db, staticFrontendDir)
+	errChan := make(chan error)
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
 
-	log.Printf("Starting server on %q", *addr)
-	log.Fatal(http.ListenAndServe(*addr, srv))
+		s := <-c
+		log.Printf("Received signal: %s", s)
+		errChan <- nil
+	}()
+
+	go func() {
+		log.Printf("Starting server on %q", *addr)
+		errChan <- http.ListenAndServe(*addr, cors.Default().Handler(srv))
+	}()
+
+	return <-errChan
 }
 
-func loadUsers(usersFile string) (map[string]*server.User, error) {
+func loadRoutine(usersFile string) (*fto.Routine, error) {
 	f, err := os.Open(usersFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open users file: %w", err)
+		return nil, fmt.Errorf("failed to open routine file: %w", err)
 	}
 	defer f.Close()
 
-	var users map[string]*server.User
-	if err := json.NewDecoder(f).Decode(&users); err != nil {
-		return nil, fmt.Errorf("failed to parse users file as JSON: %w", err)
+	var routine *fto.Routine
+	if err := json.NewDecoder(f).Decode(&routine); err != nil {
+		return nil, fmt.Errorf("failed to parse routine file as JSON: %w", err)
 	}
-	return users, nil
-}
-
-func loadSecureCookie(hashKeyFile, blockKeyFile string) (*securecookie.SecureCookie, error) {
-	hashKey, err := loadOrCreateKey(hashKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load or create hash key: %w", err)
-	}
-	blockKey, err := loadOrCreateKey(blockKeyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load or create block key: %w", err)
-	}
-	return securecookie.New(hashKey, blockKey), nil
-}
-
-func loadOrCreateKey(keyPath string) ([]byte, error) {
-	f, err := os.Open(keyPath)
-	if os.IsNotExist(err) {
-		return createKey(keyPath)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to load key from %q: %w", keyPath, err)
-	}
-	defer f.Close()
-
-	// If we're here, the key exists and we should load it.
-	dat, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read existing key from %q: %w", keyPath, err)
-	}
-
-	return dat, nil
-}
-
-func createKey(keyPath string) ([]byte, error) {
-	dat := securecookie.GenerateRandomKey(32)
-	if err := ioutil.WriteFile(keyPath, dat, 0700); err != nil {
-		return nil, fmt.Errorf("failed to write key file %q: %w", keyPath, err)
-	}
-	return dat, nil
+	return routine, nil
 }

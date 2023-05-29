@@ -28,82 +28,23 @@ func (db *DB) Close() error {
 	return db.sql.Close()
 }
 
-func (db *DB) CreateUser(name string) (fto.UserID, error) {
-	err := db.transact(func(tx *sql.Tx) error {
-		q := `INSERT INTO users (name) VALUES (?)`
-		if _, err := tx.Exec(q, name); err != nil {
-			return fmt.Errorf("failed to insert user: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	u, err := db.UserByName(name)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load just created user: %w", err)
-	}
-	return u.ID, nil
-}
-
-func (db *DB) User(id fto.UserID) (*fto.User, error) {
-	var u fto.User
-	err := db.transact(func(tx *sql.Tx) error {
-		q := `SELECT id, name
-FROM Users
-WHERE id = ?`
-		return db.user(&u, tx.QueryRow(q, id))
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to load user: %w", err)
-	}
-	return &u, nil
-}
-
-func (db *DB) UserByName(name string) (*fto.User, error) {
-	var u fto.User
-	err := db.transact(func(tx *sql.Tx) error {
-		q := `SELECT id, name
-FROM Users
-WHERE name = ?`
-		return db.user(&u, tx.QueryRow(q, name))
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to load user: %w", err)
-	}
-	return &u, nil
-}
-
 type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func (db *DB) user(u *fto.User, sc scanner) error {
-	err := sc.Scan(&u.ID, &u.Name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return fto.ErrUserNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("failed to query user: %w", err)
-	}
-
-	return nil
-}
-
-func (db *DB) RecordLift(uID fto.UserID, ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
 	return db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO lifts
-(user_id, exercise, set_type, set_number, weight, day_number, week_number, iteration_number, lift_note)
-VALUES (?, ?, ?, ?, ?, ?)`
-		if _, err := tx.Exec(q, uID, ex, st, &sqlWeight{&weight}, set, reps, day, week, iter, nullString(note)); err != nil {
+(exercise_id, set_type, set_number, reps, weight, day_number, week_number, iteration_number, lift_note)
+VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?)`
+		if _, err := tx.Exec(q, ex, st, set, reps, &sqlWeight{&weight}, day, week, iter, nullString(note)); err != nil {
 			return fmt.Errorf("failed to insert lift: %w", err)
 		}
 		return nil
 	})
 }
 
-func (db *DB) RecentLifts(uID fto.UserID) ([]*fto.Lift, error) {
+func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 	var lfs []*fto.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
@@ -111,11 +52,10 @@ SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.rep
 FROM lifts
 JOIN exercises
 	ON lifts.exercise_id = exercises.id
-WHERE user_id = ?
 ORDER BY iteration_number DESC, week_number DESC, day_number DESC, lifts.created_at DESC
 LIMIT 100`
 
-		rows, err := tx.Query(q, uID)
+		rows, err := tx.Query(q)
 		if err != nil {
 			return fmt.Errorf("failed to query training_maxes: %w", err)
 		}
@@ -151,16 +91,16 @@ func (db *DB) transact(dbFn func(tx *sql.Tx) error) error {
 	return nil
 }
 
-func (db *DB) SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto.Weight) error {
+func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO training_maxes
-(user_id, exercise_id, training_max_weight) VALUES
-(?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)`
+(exercise_id, training_max_weight) VALUES
+(?, ?), (?, ?), (?, ?), (?, ?)`
 		args := []interface{}{
-			uID, db.mainLiftIDs[fto.OverheadPress], &sqlWeight{&press},
-			uID, db.mainLiftIDs[fto.Squat], &sqlWeight{&squat},
-			uID, db.mainLiftIDs[fto.BenchPress], &sqlWeight{&bench},
-			uID, db.mainLiftIDs[fto.Deadlift], &sqlWeight{&deadlift},
+			db.mainLiftIDs[fto.OverheadPress], &sqlWeight{&press},
+			db.mainLiftIDs[fto.Squat], &sqlWeight{&squat},
+			db.mainLiftIDs[fto.BenchPress], &sqlWeight{&bench},
+			db.mainLiftIDs[fto.Deadlift], &sqlWeight{&deadlift},
 		}
 		if _, err := tx.Exec(q, args...); err != nil {
 			return fmt.Errorf("failed to insert to training_maxes: %w", err)
@@ -173,7 +113,7 @@ func (db *DB) SetTrainingMaxes(uID fto.UserID, press, squat, bench, deadlift fto
 	return nil
 }
 
-func (db *DB) TrainingMaxes(uID fto.UserID) ([]*fto.TrainingMax, error) {
+func (db *DB) TrainingMaxes() ([]*fto.TrainingMax, error) {
 	var tms []*fto.TrainingMax
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
@@ -185,13 +125,12 @@ INNER JOIN
 	FROM training_maxes
 	JOIN exercises
 		ON training_maxes.exercise_id = exercises.id
-	WHERE user_id = ?
 	GROUP BY exercises.id
 ) b
 ON a.exercise_id = b.exid
 	AND a.created_at = b.latest`
 
-		rows, err := tx.Query(q, uID)
+		rows, err := tx.Query(q)
 		if err != nil {
 			return fmt.Errorf("failed to query training_maxes: %w", err)
 		}
@@ -222,6 +161,43 @@ func trainingMaxes(rows *sql.Rows) ([]*fto.TrainingMax, error) {
 		return nil, fmt.Errorf("failed to scan training maxes: %w", err)
 	}
 	return tms, nil
+}
+
+func (db *DB) SetSmallestDenom(small fto.Weight) error {
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `INSERT INTO smallest_denom (smallest_denom) VALUES (?)`
+		if _, err := tx.Exec(q, &sqlWeight{&small}); err != nil {
+			return fmt.Errorf("failed to insert to smallest_denom: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set smallest denominator: %w", err)
+	}
+	return nil
+}
+
+func (db *DB) SmallestDenom() (fto.Weight, error) {
+	var small fto.Weight
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT a.smallest_denom
+FROM smallest_denom a
+ORDER BY a.created_at DESC
+LIMIT 1`
+		err := tx.QueryRow(q).Scan(&sqlWeight{&small})
+		if errors.Is(err, sql.ErrNoRows) {
+			return fto.ErrNoSmallestDenom
+		}
+		if err != nil {
+			return fmt.Errorf("failed to scan smallest denominator: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fto.Weight{}, err
+	}
+	return small, nil
 }
 
 func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
@@ -357,7 +333,7 @@ WHERE name IN %s`, repeatedArgs(len(exs)))
 
 		rows, err := tx.Query(q, args...)
 		if err != nil {
-			return fmt.Errorf("failed to query training_maxes: %w", err)
+			return fmt.Errorf("failed to query exercises: %w", err)
 		}
 		defer rows.Close()
 

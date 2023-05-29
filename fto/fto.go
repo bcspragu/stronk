@@ -4,24 +4,13 @@ package fto
 
 import (
 	"errors"
-	"strconv"
 	"time"
 )
 
 var (
-	ErrUserNotFound = errors.New("user not found")
+	ErrUserNotFound    = errors.New("user not found")
+	ErrNoSmallestDenom = errors.New("no smallest denom")
 )
-
-type UserID uint64
-
-func (uID UserID) String() string {
-	return strconv.FormatUint(uint64(uID), 10)
-}
-
-type User struct {
-	ID   UserID
-	Name string
-}
 
 func MainExercises() []Exercise {
 	return []Exercise{
@@ -71,9 +60,47 @@ type Routine struct {
 	Weeks []*WorkoutWeek
 }
 
+func (r *Routine) Clone() *Routine {
+	if r == nil {
+		return nil
+	}
+
+	return &Routine{
+		Name:  r.Name,
+		Weeks: cloneWeeks(r.Weeks),
+	}
+}
+
+func cloneWeeks(weeks []*WorkoutWeek) []*WorkoutWeek {
+	var out []*WorkoutWeek
+	for _, wk := range weeks {
+		out = append(out, wk.Clone())
+	}
+	return out
+}
+
 type WorkoutWeek struct {
 	WeekName string
 	Days     []*WorkoutDay
+}
+
+func (w *WorkoutWeek) Clone() *WorkoutWeek {
+	if w == nil {
+		return nil
+	}
+
+	return &WorkoutWeek{
+		WeekName: w.WeekName,
+		Days:     cloneDays(w.Days),
+	}
+}
+
+func cloneDays(days []*WorkoutDay) []*WorkoutDay {
+	var out []*WorkoutDay
+	for _, d := range days {
+		out = append(out, d.Clone())
+	}
+	return out
 }
 
 type WorkoutDay struct {
@@ -82,10 +109,50 @@ type WorkoutDay struct {
 	Movements []*Movement
 }
 
+func (w *WorkoutDay) Clone() *WorkoutDay {
+	if w == nil {
+		return nil
+	}
+
+	return &WorkoutDay{
+		DayName:   w.DayName,
+		DayOfWeek: w.DayOfWeek,
+		Movements: cloneMovements(w.Movements),
+	}
+}
+
+func cloneMovements(mvmts []*Movement) []*Movement {
+	var out []*Movement
+	for _, mvmt := range mvmts {
+		out = append(out, mvmt.Clone())
+	}
+	return out
+}
+
 type Movement struct {
 	Exercise Exercise
 	SetType  SetType
 	Sets     []*Set
+}
+
+func (m *Movement) Clone() *Movement {
+	if m == nil {
+		return nil
+	}
+
+	return &Movement{
+		Exercise: m.Exercise,
+		SetType:  m.SetType,
+		Sets:     cloneSets(m.Sets),
+	}
+}
+
+func cloneSets(sets []*Set) []*Set {
+	var out []*Set
+	for _, set := range sets {
+		out = append(out, set.Clone())
+	}
+	return out
 }
 
 type Set struct {
@@ -96,6 +163,23 @@ type Set struct {
 	// TrainingMaxPercentage is a number between 0 and 100 indicating what
 	// portion of your training max this lift is going for.
 	TrainingMaxPercentage int
+
+	// WeightTarget isn't set when users configure it, only in responses sent to
+	// clients.
+	WeightTarget Weight
+}
+
+func (s *Set) Clone() *Set {
+	if s == nil {
+		return nil
+	}
+
+	return &Set{
+		RepTarget:             s.RepTarget,
+		ToFailure:             s.ToFailure,
+		TrainingMaxPercentage: s.TrainingMaxPercentage,
+		WeightTarget:          s.WeightTarget,
+	}
 }
 
 type Lift struct {
@@ -105,7 +189,6 @@ type Lift struct {
 	SetNumber int
 	Reps      int
 	Note      string
-	UserID    UserID
 
 	// Day - 0, 1, 2, ... in a given week
 	// Week - 0, 1, 2, ... in a given iteration
