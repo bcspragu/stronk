@@ -1,12 +1,12 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import type { Movement, Set } from './+page.server';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
-	import { browser } from '$app/environment';
+	import apipath from '$lib/apipath'
 
 	export let data: PageData;
 
 	let note = '';
+	let showNote = false;
 
 	$: curMvmt = data.Workout[data.NextMovementIndex];
 	$: curSet = curMvmt.Sets[data.NextSetIndex];
@@ -22,28 +22,19 @@
 		reps = Number.parseInt((e.target as HTMLInputElement).value);
 	};
 
-	const liftInfoStr = (mvmt: Movement, set: Set): string => {
-		let info =
-			mvmt.SetType +
-			': ' +
-			mvmt.Exercise +
-			' ' +
-			set.WeightTarget.Value / 10 +
-			' for ' +
-			set.RepTarget;
-		if (set.ToFailure) {
-			info += '+';
-		}
-		return info;
+	const liftInfoStr1 = (mvmt: Movement): string => {
+		return `[${mvmt.SetType}] ${mvmt.Exercise}`
 	};
 
+	const liftInfoStr2 = (set: Set): string => {
+		const suffix = set.ToFailure ? '+' : ''
+		return  `${set.WeightTarget.Value / 10} lbs for ${set.RepTarget}${suffix}`
+	};
+
+	// TODO: Make this a better format that includes the WeightTarget
 	const setString = (set: Set): string => {
-		let setStr = set.RepTarget.toString();
-		if (set.ToFailure) {
-			setStr += '+';
-		}
-		setStr += ' @ ' + set.TrainingMaxPercentage + '%';
-		return setStr;
+		const suffix = set.ToFailure ? '+' : ''
+		return `[${set.TrainingMaxPercentage}%] ${set.WeightTarget.Value / 10} x ${set.RepTarget}${suffix}`
 	};
 
 	const record = (numReps: number) => {
@@ -59,11 +50,15 @@
 			iteration: data.IterationNumber
 		};
 
-		const baseURL = browser ? '' : PUBLIC_API_BASE_URL;
-		fetch(`${baseURL}/api/recordLift`, { method: 'POST', body: JSON.stringify(req) })
+		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json())
-			.then((dat) => (data = dat))
-			.finally(() => (note = ''));
+			.then((dat) => {
+				data = dat
+			})
+			.finally(() => {
+				note = ''
+				showNote = false
+			});
 	};
 
 	const recordLift = () => record(reps);
@@ -93,11 +88,15 @@
 	</ul>
 
 	<div class="lift-entry">
-		<div>{liftInfoStr(curMvmt, curSet)}</div>
+		<div class="lift-info">
+			{liftInfoStr1(curMvmt)}
+			<br>
+			<strong>{liftInfoStr2(curSet)}</strong>
+		</div>
 
 		{#if curSet.ToFailure}
 			<div class="lift-input-row">
-				<button on:mousedown={decReps}>-</button>
+				<button class="weight-adj-button" on:click={decReps}>-</button>
 				<input
 					class="lift-input"
 					type="number"
@@ -105,14 +104,19 @@
 					value={reps}
 					on:input={updateReps}
 				/>
-				<button on:mousedown={incReps}>+</button>
+				<button class="weight-adj-button" on:click={incReps}>+</button>
 			</div>
 		{/if}
 
 		<div class="lift-bottom-row">
-			<textarea bind:value={note} cols="10" rows="1" />
-			<button on:mousedown={recordLift}>Record</button>
-			<button on:mousedown={recordSkip}>Skip</button>
+			<button class="record-button" on:click={recordLift}>Record</button>
+			<button class="skip-button" on:click={recordSkip}>Skip</button>
+			{#if showNote}
+				<textarea class="note" bind:value={note} rows="3" />
+			{:else}
+				<button class="add-note-button" on:click={() => showNote = true}>Add Note</button>
+			{/if}
+			<button class="back-button" on:click={() => alert('todo')}>Back</button>
 		</div>
 	</div>
 </div>
@@ -141,7 +145,12 @@
 	}
 
 	.lift-input {
+		text-align: center;
+		font-size: 18px;
+		font-weight: bold;
 		width: 30px;
+		height: 30px;
+		margin: 0 15px;
 	}
 
 	.completed {
@@ -157,5 +166,33 @@
 	input[type='number']::-webkit-inner-spin-button,
 	input[type='number']::-webkit-outer-spin-button {
 		-webkit-appearance: none;
+	}
+
+	.record-button, .skip-button, .add-note-button, .back-button {
+		display: block;
+		width: 50vw;
+		height: 30px;
+		margin: 15px auto;
+	}
+
+	.note {
+		display: block;
+		width: 50vw;
+		margin: 10px auto;
+	}
+
+	.lift-info {
+		text-align: center;
+	}
+
+	.weight-adj-button {
+		height: 30px;
+		width: 30px;
+		font-size: 20px;
+	}
+
+	.lift-input-row {
+		margin-top: 10px;
+		text-align: center;
 	}
 </style>

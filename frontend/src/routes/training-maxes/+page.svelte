@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { PUBLIC_API_BASE_URL } from '$env/static/public';
-	import { browser } from '$app/environment';
+	import apipath from '$lib/apipath'
 
 	let press: number | undefined;
 	let squat: number | undefined;
@@ -29,8 +28,7 @@
 			smallest_denom: smallestDenom?.toString()
 		};
 
-		const baseURL = browser ? '' : PUBLIC_API_BASE_URL;
-		fetch(`${baseURL}/api/setTrainingMaxes`, {
+		fetch(apipath('/api/setTrainingMaxes'), {
 			method: 'POST',
 			body: JSON.stringify(req)
 		}).then(() => {
