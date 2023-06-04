@@ -17,3 +17,5 @@ Site is on `localhost:5173`
 - [ ] Highlight personal records
 - [x] Make weight amount more prominent
 - [ ] Make a "back"/edit button
+- [ ] Add support for offering to skip deload week
+  - Will require adding new `routine.json` metadata

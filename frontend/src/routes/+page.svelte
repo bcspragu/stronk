@@ -66,7 +66,7 @@
 </script>
 
 <div class="lifts-page">
-	<h1>{data.WeekName} - {data.DayName}</h1>
+	<h1 class="header">{data.WeekName} - {data.DayName}</h1>
 
 	<ul class="lift-list">
 		{#each data.Workout as mvmt, i}
@@ -86,6 +86,8 @@
 			</li>
 		{/each}
 	</ul>
+
+	<hr class="spacer">
 
 	<div class="lift-entry">
 		<div class="lift-info">
@@ -132,10 +134,14 @@
 		height: 100%;
 	}
 
+	.header {
+		text-align: center;
+		margin-bottom: 0;
+	}
+
 	.lifts-page {
 		display: flex;
 		flex-direction: column;
-		min-height: 100%;
 	}
 
 	.current-lift {
@@ -143,13 +149,19 @@
 	}
 
 	.lift-list {
-		flex: 0 1;
-		max-height: 80vh;
+		max-height: 60vh;
 		overflow-y: scroll;
 	}
 
+	.spacer {
+		border: none;
+		height: 1px;
+		background-color: black;
+		width: 75%;
+		margin-bottom: 20px;
+	}
+
 	.lift-entry {
-		border-top: 1px solid black;
 		flex: 1 0;
 		height: 80%;
 	}
