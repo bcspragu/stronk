@@ -20,11 +20,16 @@ type SecureCookie interface {
 }
 
 type DB interface {
-	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error
+	SkippedWeeks() ([]fto.SkippedWeek, error)
+	SkipWeek(note string, week, iter int) error
+
 	SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error
-	SetSmallestDenom(small fto.Weight) error
 	TrainingMaxes() ([]*fto.TrainingMax, error)
+
+	SetSmallestDenom(small fto.Weight) error
 	SmallestDenom() (fto.Weight, error)
+
+	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error
 	RecentLifts() ([]*fto.Lift, error)
 	ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error)
 }
@@ -56,7 +61,7 @@ func (s *Server) initMux() {
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
 	mux.HandleFunc("/api/nextLift", s.serveNextLift)
 	mux.HandleFunc("/api/recordLift", s.serveRecordLift)
-	mux.HandleFunc("/api/recordLift", s.skipOptionalWeek)
+	mux.HandleFunc("/api/skipOptionalWeek", s.skipOptionalWeek)
 
 	s.mux = mux
 }
@@ -220,14 +225,32 @@ type nextLiftResp struct {
 }
 
 func (s *Server) nextLiftResponse(w http.ResponseWriter) {
+	nextLift, err := s.nextLift()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResp(w, nextLift)
+}
+
+func (s *Server) nextLift() (*nextLiftResp, error) {
 	// Now the tricky part - we need to figure out the last one that a user
 	// actually completed. Here's our strategy for doing so
 	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
 	//  2. Correlate that with the routine, using ~~magic~~ (read: bad and hacky heuristics)
 	lifts, err := s.db.RecentLifts()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load recent lifts: %v", err), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to load recent lifts: %w", err)
+	}
+
+	skipWeeks, err := s.db.SkippedWeeks()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load skipped weeks: %w", err)
+	}
+	type weekIter struct{ week, iteration int }
+	swm := make(map[weekIter]bool)
+	for _, sw := range skipWeeks {
+		swm[weekIter{week: sw.Week, iteration: sw.Iteration}] = true
 	}
 
 	// Load the latest day
@@ -241,13 +264,11 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 
 	// Load the day from the routine.
 	if week >= len(routine.Weeks) {
-		http.Error(w, "Lift was for week that doesn't exist in routine", http.StatusBadRequest)
-		return
+		return nil, fmt.Errorf("lift was for week %d that doesn't exist in routine", week)
 	}
 
 	if day >= len(routine.Weeks[week].Days) {
-		http.Error(w, "Lift was for day that doesn't exist in routine", http.StatusBadRequest)
-		return
+		return nil, fmt.Errorf("lift was for day %d (week %d) that doesn't exist in routine", day, week)
 	}
 
 	dayRoutine := routine.Weeks[week].Days[day]
@@ -284,14 +305,30 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 		week = 0
 		iter++
 	}
+
 	// Update our day routine, which may very well have changed.
 	dayRoutine = routine.Weeks[week].Days[day]
+
+	// If "the next thing" is a week we skipped, go straight to the next week or iter
+	if swm[weekIter{week: week, iteration: iter}] {
+		if week < len(routine.Weeks)-1 {
+			set.SetIndex = 0
+			set.MovementIndex = 0
+			day = 0
+			week++
+		} else {
+			set.SetIndex = 0
+			set.MovementIndex = 0
+			day = 0
+			week = 0
+			iter++
+		}
+	}
 
 	// Now, load the smallest denom and training maxes, to set the target weights.
 	tms, err := s.db.TrainingMaxes()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load training maxes: %v", err), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to load training maxes: %w", err)
 	}
 
 	getTM := func(ex fto.Exercise) (fto.Weight, bool) {
@@ -305,8 +342,7 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 
 	smallest, err := s.db.SmallestDenom()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to load smallest denom: %v", err), http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("failed to load smallest denom: %w", err)
 	}
 
 	var comparables *fto.ComparableLifts
@@ -322,8 +358,7 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 			if set.ToFailure {
 				if comparables == nil {
 					if comparables, err = s.db.ComparableLifts(mvmt.Exercise, set.WeightTarget); err != nil {
-						http.Error(w, fmt.Sprintf("failed to load comparables: %v", err), http.StatusInternalServerError)
-						return
+						return nil, fmt.Errorf("failed to load comparables: %w", err)
 					}
 				} else {
 					log.Printf("apparently had multiple to_failure sets in the same day. week %d day %d", week, day)
@@ -332,17 +367,18 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 		}
 	}
 
-	jsonResp(w, nextLiftResp{
-		DayNumber:         day,
-		WeekNumber:        week,
-		IterationNumber:   iter,
-		DayName:           dayRoutine.DayName,
-		WeekName:          routine.Weeks[week].WeekName,
-		Workout:           mvmts,
-		NextMovementIndex: set.MovementIndex,
-		NextSetIndex:      set.SetIndex,
-		OptionalWeek:      day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
-	})
+	return &nextLiftResp{
+		DayNumber:          day,
+		WeekNumber:         week,
+		IterationNumber:    iter,
+		DayName:            dayRoutine.DayName,
+		WeekName:           routine.Weeks[week].WeekName,
+		Workout:            mvmts,
+		NextMovementIndex:  set.MovementIndex,
+		NextSetIndex:       set.SetIndex,
+		OptionalWeek:       day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
+		FailureComparables: comparables,
+	}, nil
 }
 
 // roundWeight returns the percentage of the training max rounded to the
@@ -378,6 +414,7 @@ type recordReq struct {
 	Day       int          `json:"Day"`
 	Week      int          `json:"Week"`
 	Iteration int          `json:"Iteration"`
+	ToFailure bool         `json:"ToFailure"`
 }
 
 func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
@@ -399,7 +436,7 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration); err != nil {
+	if err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure); err != nil {
 		http.Error(w, fmt.Sprintf("failed to record lift: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -408,7 +445,34 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) skipOptionalWeek(w http.ResponseWriter, r *http.Request) {
-	// TODO: Implement!
+	nextLift, err := s.nextLift()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type skipReq struct {
+		Week      int    `json:"Week"`
+		Iteration int    `json:"Iteration"`
+		Note      string `json:"Note"`
+	}
+	var req skipReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if !nextLift.OptionalWeek {
+		http.Error(w, "next lift isn't the start of an optional week", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.db.SkipWeek(req.Note, req.Week, req.Iteration); err != nil {
+		http.Error(w, fmt.Sprintf("failed to skip week: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.nextLiftResponse(w)
 }
 
 type lastSet struct {

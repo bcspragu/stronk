@@ -1,0 +1,1 @@
+DROP TABLE skipped_weeks;

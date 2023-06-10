@@ -70,9 +70,11 @@ export interface RecordLiftRequest {
   Day: number
   Week: number
   Iteration: number
+	ToFailure: boolean
 }
 
 export interface SkipOptionalWeekRequest {
   Week: number
   Iteration: number
+	Note: string
 }

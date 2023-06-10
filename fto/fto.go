@@ -14,6 +14,12 @@ var (
 	ErrNoSmallestDenom = errors.New("no smallest denom")
 )
 
+type SkippedWeek struct {
+	Week      int
+	Iteration int
+	Note      string
+}
+
 type ComparableLifts struct {
 	ClosestWeight    *Lift
 	PersonalRecord   *Lift

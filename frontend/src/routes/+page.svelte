@@ -8,6 +8,9 @@
 	let note = '';
 	let showNote = false;
 
+	// Note specifically when skipping a deload week
+	let skipNote = '';
+
 	$: curMvmt = data.Workout[data.NextMovementIndex];
 	$: curSet = curMvmt.Sets[data.NextSetIndex];
 	$: reps = curSet.RepTarget;
@@ -46,7 +49,8 @@
 			Note: note,
 			Day: data.DayNumber,
 			Week: data.WeekNumber,
-			Iteration: data.IterationNumber
+			Iteration: data.IterationNumber,
+			ToFailure: curSet.ToFailure,
 		} as RecordLiftRequest;
 
 		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
@@ -66,7 +70,8 @@
 	const skipOptionalWeek = () => {
 		var req = {
 			Week: data.WeekNumber,
-			Iteration: data.IterationNumber
+			Iteration: data.IterationNumber,
+			Note: skipNote,
 		} as SkipOptionalWeekRequest;
 
 		fetch(apipath('/api/skipOptionalWeek'), { method: 'POST', body: JSON.stringify(req) })
@@ -75,6 +80,7 @@
 				data = dat
 			})
 			.finally(() => {
+				skipNote = false
 				note = ''
 				showNote = false
 			});
@@ -86,6 +92,7 @@
 			<h1 class="header">Skip optional<br>{data.WeekName}?</h1>
 			<button class="dont-skip-button" on:click={() => data.OptionalWeek = false}>Do the week</button>
 			<button class="skip-button" on:click={skipOptionalWeek}>Skip it</button>
+			<textarea class="note" bind:value={skipNote} rows="3" />
 	{:else}
 	<h1 class="header">{data.WeekName} - {data.DayName}</h1>
 
@@ -128,13 +135,13 @@
 					on:input={updateReps}
 				/>
 				<button class="weight-adj-button" on:click={incReps}>+</button>
+				{#if data.FailureComparables.ClosestWeight}
+					<div>Closest Comparison: {data.FailureComparables.ClosestWeight.Weight.Value / 10} x {data.FailureComparables.ClosestWeight.Reps}</div>
+				{/if}
+				{#if data.FailureComparables.PersonalRecord}
+					<div>Lift PR: {data.FailureComparables.PersonalRecord.Weight.Value / 10} x {data.FailureComparables.PersonalRecord.Reps} &thickapprox; {data.FailureComparables.PREquivalentReps} reps @ {curSet.WeightTarget.Value / 10} lbs</div>
+				{/if}
 			</div>
-			{#if data.FailureComparables.ClosestWeight}
-				<div>Closest Comparison: {data.FailureComparables.ClosestWeight.Weight.Value / 10} x {data.FailureComparables.ClosestWeight.Reps}</div>
-			{/if}
-			{#if data.FailureComparables.PersonalRecord}
-				<div>Lift PR: {data.FailureComparables.PersonalRecord.Weight.Value / 10} x {data.FailureComparables.PersonalRecord.Reps} &thickapprox; {data.FailureComparables.PREquivalentReps} reps</div>
-			{/if}
 			<div>
 
 			</div>

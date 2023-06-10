@@ -44,6 +44,42 @@ VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	})
 }
 
+func (db *DB) SkippedWeeks() ([]fto.SkippedWeek, error) {
+	var weeks []fto.SkippedWeek
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT week_number, iteration_number, note
+FROM skipped_weeks
+ORDER BY iteration_number DESC, week_number DESC
+LIMIT 100`
+
+		rows, err := tx.Query(q)
+		if err != nil {
+			return fmt.Errorf("failed to query skipped weeks: %w", err)
+		}
+		if weeks, err = skippedWeeks(rows); err != nil {
+			return fmt.Errorf("failed to scan skipped weeks: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load skipped weeks: %w", err)
+	}
+	return weeks, nil
+}
+
+func (db *DB) SkipWeek(note string, week, iter int) error {
+	return db.transact(func(tx *sql.Tx) error {
+		q := `INSERT INTO skipped_weeks
+(week_number, iteration_number, note)
+VALUES (?, ?, ?)`
+		if _, err := tx.Exec(q, week, iter, note); err != nil {
+			return fmt.Errorf("failed to insert skipped week: %w", err)
+		}
+		return nil
+	})
+}
+
 func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error) {
 	// We want to find two comparable lifts:
 	//  1. The closest in weight, breaking ties by highest ORM equivalent ("Most Similar")
@@ -60,7 +96,7 @@ WHERE exercises.name = ?
 ORDER BY iteration_number DESC, week_number DESC, day_number DESC, lifts.created_at DESC
 LIMIT 250`
 
-		rows, err := tx.Query(q)
+		rows, err := tx.Query(q, ex)
 		if err != nil {
 			return fmt.Errorf("failed to query training_maxes: %w", err)
 		}
@@ -312,6 +348,24 @@ func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
 		return nil, fmt.Errorf("failed to scan lifts: %w", err)
 	}
 	return lfs, nil
+}
+
+func skippedWeeks(rows *sql.Rows) ([]fto.SkippedWeek, error) {
+	defer rows.Close()
+
+	var wks []fto.SkippedWeek
+	for rows.Next() {
+		var wk fto.SkippedWeek
+		if err := rows.Scan(&wk.Week, &wk.Iteration, &wk.Note); err != nil {
+			return nil, fmt.Errorf("failed to scan skipped week: %w", err)
+		}
+		wks = append(wks, wk)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to scan lifts: %w", err)
+	}
+	return wks, nil
 }
 
 func New(dbPath, migrationsPath string) (*DB, error) {
