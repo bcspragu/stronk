@@ -20,6 +20,7 @@ type DB struct {
 	lifts          []lift
 	trainingMaxes  []*fto.TrainingMax
 	smallestDenoms []fto.Weight
+	skippedWeeks   []fto.SkippedWeek
 }
 
 func (db *DB) RecentLifts() ([]*fto.Lift, error) {
@@ -49,7 +50,7 @@ func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 	return out, nil
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error {
 	db.lifts = append(db.lifts, lift{
 		Lift: &fto.Lift{
 			Exercise:        ex,
@@ -61,6 +62,7 @@ func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set
 			WeekNumber:      week,
 			IterationNumber: iter,
 			Note:            note,
+			ToFailure:       toFailure,
 		},
 		idx: len(db.lifts),
 	})
@@ -106,4 +108,21 @@ func (db *DB) SmallestDenom() (fto.Weight, error) {
 		return fto.Weight{}, fto.ErrNoSmallestDenom
 	}
 	return denoms[len(denoms)-1], nil
+}
+
+func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error) {
+	return &fto.ComparableLifts{}, nil
+}
+
+func (db *DB) SkippedWeeks() ([]fto.SkippedWeek, error) {
+	return db.skippedWeeks, nil
+}
+
+func (db *DB) SkipWeek(note string, week, iter int) error {
+	db.skippedWeeks = append(db.skippedWeeks, fto.SkippedWeek{
+		Week:      week,
+		Iteration: iter,
+		Note:      note,
+	})
+	return nil
 }

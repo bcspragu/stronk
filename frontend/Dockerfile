@@ -1,3 +1,4 @@
+# npm run build:cloud
 # docker build -t 192.168.5.3:5000/fivethreeone-fe .
 FROM gcr.io/distroless/nodejs16-debian11
 COPY ./build/ /app
