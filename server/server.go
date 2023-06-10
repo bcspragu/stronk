@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,7 @@ type DB interface {
 	TrainingMaxes() ([]*fto.TrainingMax, error)
 	SmallestDenom() (fto.Weight, error)
 	RecentLifts() ([]*fto.Lift, error)
+	ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error)
 }
 
 type Server struct {
@@ -54,6 +56,7 @@ func (s *Server) initMux() {
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
 	mux.HandleFunc("/api/nextLift", s.serveNextLift)
 	mux.HandleFunc("/api/recordLift", s.serveRecordLift)
+	mux.HandleFunc("/api/recordLift", s.skipOptionalWeek)
 
 	s.mux = mux
 }
@@ -89,11 +92,11 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type tmReq struct {
-		PressTM       string `json:"overhead_press"`
-		SquatTM       string `json:"squat"`
-		BenchTM       string `json:"bench_press"`
-		DeadliftTM    string `json:"deadlift"`
-		SmallestDenom string `json:"smallest_denom"`
+		PressTM       string `json:"OverheadPress"`
+		SquatTM       string `json:"Squat"`
+		BenchTM       string `json:"BenchPress"`
+		DeadliftTM    string `json:"Deadlift"`
+		SmallestDenom string `json:"SmallestDenom"`
 	}
 
 	// We assume the client returns the units in pounds.
@@ -204,14 +207,16 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 }
 
 type nextLiftResp struct {
-	DayNumber         int
-	WeekNumber        int
-	IterationNumber   int
-	DayName           string
-	WeekName          string
-	Workout           []*fto.Movement
-	NextMovementIndex int
-	NextSetIndex      int
+	DayNumber          int
+	WeekNumber         int
+	IterationNumber    int
+	DayName            string
+	WeekName           string
+	Workout            []*fto.Movement
+	NextMovementIndex  int
+	NextSetIndex       int
+	OptionalWeek       bool
+	FailureComparables *fto.ComparableLifts
 }
 
 func (s *Server) nextLiftResponse(w http.ResponseWriter) {
@@ -304,6 +309,7 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 		return
 	}
 
+	var comparables *fto.ComparableLifts
 	mvmts := dayRoutine.Clone().Movements
 	for _, mvmt := range mvmts {
 		tm, ok := getTM(mvmt.Exercise)
@@ -313,6 +319,16 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 		}
 		for _, set := range mvmt.Sets {
 			set.WeightTarget = roundWeight(tm, set.TrainingMaxPercentage, smallest)
+			if set.ToFailure {
+				if comparables == nil {
+					if comparables, err = s.db.ComparableLifts(mvmt.Exercise, set.WeightTarget); err != nil {
+						http.Error(w, fmt.Sprintf("failed to load comparables: %v", err), http.StatusInternalServerError)
+						return
+					}
+				} else {
+					log.Printf("apparently had multiple to_failure sets in the same day. week %d day %d", week, day)
+				}
+			}
 		}
 	}
 
@@ -325,6 +341,7 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 		Workout:           mvmts,
 		NextMovementIndex: set.MovementIndex,
 		NextSetIndex:      set.SetIndex,
+		OptionalWeek:      day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
 	})
 }
 
@@ -352,15 +369,15 @@ func roundWeight(trainingMax fto.Weight, percent int, smallestDenom fto.Weight) 
 }
 
 type recordReq struct {
-	Exercise  fto.Exercise `json:"exercise"`
-	SetType   fto.SetType  `json:"set_type"`
-	Weight    string       `json:"weight"`
-	Set       int          `json:"set"`
-	Reps      int          `json:"reps"`
-	Note      string       `json:"note"`
-	Day       int          `json:"day"`
-	Week      int          `json:"week"`
-	Iteration int          `json:"iteration"`
+	Exercise  fto.Exercise `json:"Exercise"`
+	SetType   fto.SetType  `json:"SetType"`
+	Weight    string       `json:"Weight"`
+	Set       int          `json:"Set"`
+	Reps      int          `json:"Reps"`
+	Note      string       `json:"Note"`
+	Day       int          `json:"Day"`
+	Week      int          `json:"Week"`
+	Iteration int          `json:"Iteration"`
 }
 
 func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
@@ -388,6 +405,10 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.nextLiftResponse(w)
+}
+
+func (s *Server) skipOptionalWeek(w http.ResponseWriter, r *http.Request) {
+	// TODO: Implement!
 }
 
 type lastSet struct {

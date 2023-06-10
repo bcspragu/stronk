@@ -1,0 +1,1 @@
+ALTER TABLE lifts DROP COLUMN to_failure;

@@ -1,37 +1,9 @@
 import apipath from '$lib/apipath'
+import type { PageServerLoad } from './$types'
+import type { NextLiftResponse } from '$lib/api'
 
-interface Weight {
-	Unit: string;
-	Value: number;
-}
-
-export interface Set {
-	RepTarget: number;
-	ToFailure: boolean;
-	TrainingMaxPercentage: number;
-	WeightTarget: Weight;
-}
-
-export interface Movement {
-	Exercise: string;
-	SetType: string;
-	Sets: Set[];
-}
-
-interface NextLiftResponse {
-	DayNumber: number;
-	WeekNumber: number;
-	IterationNumber: number;
-	DayName: string;
-	WeekName: string;
-	Workout: Movement[];
-	NextMovementIndex: number;
-	NextSetIndex: number;
-}
-
-/** @type {import('./$types').PageLoad} */
-export async function load({ fetch }) {
+export const load: PageServerLoad = async ({ fetch }) => {
 	const res = await fetch(apipath('/api/nextLift'));
 	const data: NextLiftResponse = await res.json();
 	return data;
-}
+};

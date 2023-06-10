@@ -32,23 +32,109 @@ type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int) error {
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error {
 	return db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO lifts
-(exercise_id, set_type, set_number, reps, weight, day_number, week_number, iteration_number, lift_note)
-VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?)`
-		if _, err := tx.Exec(q, ex, st, set, reps, &sqlWeight{&weight}, day, week, iter, nullString(note)); err != nil {
+(exercise_id, set_type, set_number, reps, weight, day_number, week_number, iteration_number, lift_note, to_failure)
+VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		if _, err := tx.Exec(q, ex, st, set, reps, &sqlWeight{&weight}, day, week, iter, nullString(note), toFailure); err != nil {
 			return fmt.Errorf("failed to insert lift: %w", err)
 		}
 		return nil
 	})
 }
 
+func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error) {
+	// We want to find two comparable lifts:
+	//  1. The closest in weight, breaking ties by highest ORM equivalent ("Most Similar")
+	//  2. The highest ORM equivalent reps, period. ("PR")
+	var lfs []*fto.Lift
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
+FROM lifts
+JOIN exercises
+	ON lifts.exercise_id = exercises.id
+WHERE exercises.name = ?
+	AND to_failure = TRUE
+ORDER BY iteration_number DESC, week_number DESC, day_number DESC, lifts.created_at DESC
+LIMIT 250`
+
+		rows, err := tx.Query(q)
+		if err != nil {
+			return fmt.Errorf("failed to query training_maxes: %w", err)
+		}
+		if lfs, err = lifts(rows); err != nil {
+			return fmt.Errorf("failed to scan training_maxes: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set lifts: %w", err)
+	}
+
+	pr := findPR(lfs)
+	var equivReps int
+	if pr != nil {
+		equivReps = pr.CalcEquivalentReps(weight)
+	}
+	return &fto.ComparableLifts{
+		ClosestWeight:    findClosest(lfs, weight),
+		PersonalRecord:   pr,
+		PREquivalentReps: equivReps,
+	}, nil
+}
+
+func findClosest(lifts []*fto.Lift, weight fto.Weight) *fto.Lift {
+	if len(lifts) == 0 {
+		return nil
+	}
+
+	var (
+		closest  = abs(lifts[0].Weight.Value - weight.Value)
+		max, idx int
+	)
+	for i, l := range lifts {
+		dist := abs(l.Weight.Value - weight.Value)
+		orm := l.AsOneRepMax()
+		if dist < closest || dist == closest && orm.Value > max {
+			closest = dist
+			max = orm.Value
+			idx = i
+		}
+	}
+	return lifts[idx]
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func findPR(lifts []*fto.Lift) *fto.Lift {
+	if len(lifts) == 0 {
+		return nil
+	}
+
+	var max, maxIndex int
+	for i, l := range lifts {
+		orm := l.AsOneRepMax()
+		if orm.Value > max {
+			max = orm.Value
+			maxIndex = i
+		}
+	}
+
+	return lifts[maxIndex]
+}
+
 func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 	var lfs []*fto.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
-SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number
+SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
 FROM lifts
 JOIN exercises
 	ON lifts.exercise_id = exercises.id
@@ -212,7 +298,8 @@ func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
 		if err := rows.Scan(
 			&lf.Exercise, &lf.SetType, &sqlWeight{&lf.Weight},
 			&lf.SetNumber, &lf.Reps, &note,
-			&lf.DayNumber, &lf.WeekNumber, &lf.IterationNumber); err != nil {
+			&lf.DayNumber, &lf.WeekNumber, &lf.IterationNumber,
+			&lf.ToFailure); err != nil {
 			return nil, fmt.Errorf("failed to scan lift: %w", err)
 		}
 		if note.Valid {

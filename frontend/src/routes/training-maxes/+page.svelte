@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import apipath from '$lib/apipath'
+	import type { SetTrainingMaxesRequest } from '$lib/api';
 
 	let press: number | undefined;
 	let squat: number | undefined;
@@ -21,12 +22,12 @@
 		}
 
 		var req = {
-			overhead_press: press?.toString(),
-			squat: squat?.toString(),
-			bench_press: bench?.toString(),
-			deadlift: deadlift?.toString(),
-			smallest_denom: smallestDenom?.toString()
-		};
+			OverheadPress: press?.toString(),
+			Squat: squat?.toString(),
+			BenchPress: bench?.toString(),
+			Deadlift: deadlift?.toString(),
+			SmallestDenom: smallestDenom?.toString()
+		} as SetTrainingMaxesRequest;
 
 		fetch(apipath('/api/setTrainingMaxes'), {
 			method: 'POST',

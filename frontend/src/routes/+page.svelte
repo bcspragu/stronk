@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import type { Movement, Set } from './+page.server';
+	import type { RecordLiftRequest, Movement, Set, NextLiftResponse, SkipOptionalWeekRequest} from '$lib/api';
 	import apipath from '$lib/apipath'
 
 	export let data: PageData;
@@ -31,7 +31,6 @@
 		return  `${set.WeightTarget.Value / 10} lbs for ${set.RepTarget}${suffix}`
 	};
 
-	// TODO: Make this a better format that includes the WeightTarget
 	const setString = (set: Set): string => {
 		const suffix = set.ToFailure ? '+' : ''
 		return `[${set.TrainingMaxPercentage}%] ${set.WeightTarget.Value / 10} x ${set.RepTarget}${suffix}`
@@ -39,19 +38,19 @@
 
 	const record = (numReps: number) => {
 		var req = {
-			exercise: curMvmt.Exercise,
-			set_type: curMvmt.SetType,
-			weight: (curSet.WeightTarget.Value / 10).toString(),
-			set: data.NextSetIndex,
-			reps: numReps,
-			note,
-			day: data.DayNumber,
-			week: data.WeekNumber,
-			iteration: data.IterationNumber
-		};
+			Exercise: curMvmt.Exercise,
+			SetType: curMvmt.SetType,
+			Weight: (curSet.WeightTarget.Value / 10).toString(),
+			Set: data.NextSetIndex,
+			Reps: numReps,
+			Note: note,
+			Day: data.DayNumber,
+			Week: data.WeekNumber,
+			Iteration: data.IterationNumber
+		} as RecordLiftRequest;
 
 		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
-			.then((resp) => resp.json())
+			.then((resp) => resp.json() as Promise<NextLiftResponse>)
 			.then((dat) => {
 				data = dat
 			})
@@ -63,9 +62,31 @@
 
 	const recordLift = () => record(reps);
 	const recordSkip = () => record(0);
+
+	const skipOptionalWeek = () => {
+		var req = {
+			Week: data.WeekNumber,
+			Iteration: data.IterationNumber
+		} as SkipOptionalWeekRequest;
+
+		fetch(apipath('/api/skipOptionalWeek'), { method: 'POST', body: JSON.stringify(req) })
+			.then((resp) => resp.json() as Promise<NextLiftResponse>)
+			.then((dat) => {
+				data = dat
+			})
+			.finally(() => {
+				note = ''
+				showNote = false
+			});
+	};
 </script>
 
 <div class="lifts-page">
+	{#if data.OptionalWeek}
+			<h1 class="header">Skip optional<br>{data.WeekName}?</h1>
+			<button class="dont-skip-button" on:click={() => data.OptionalWeek = false}>Do the week</button>
+			<button class="skip-button" on:click={skipOptionalWeek}>Skip it</button>
+	{:else}
 	<h1 class="header">{data.WeekName} - {data.DayName}</h1>
 
 	<ul class="lift-list">
@@ -108,6 +129,15 @@
 				/>
 				<button class="weight-adj-button" on:click={incReps}>+</button>
 			</div>
+			{#if data.FailureComparables.ClosestWeight}
+				<div>Closest Comparison: {data.FailureComparables.ClosestWeight.Weight.Value / 10} x {data.FailureComparables.ClosestWeight.Reps}</div>
+			{/if}
+			{#if data.FailureComparables.PersonalRecord}
+				<div>Lift PR: {data.FailureComparables.PersonalRecord.Weight.Value / 10} x {data.FailureComparables.PersonalRecord.Reps} &thickapprox; {data.FailureComparables.PREquivalentReps} reps</div>
+			{/if}
+			<div>
+
+			</div>
 		{/if}
 
 		<div class="lift-bottom-row">
@@ -121,6 +151,7 @@
 			<button class="back-button" on:click={() => alert('todo')}>Back</button>
 		</div>
 	</div>
+	{/if}
 </div>
 
 <style>
@@ -216,5 +247,12 @@
 	.lift-input-row {
 		margin-top: 10px;
 		text-align: center;
+	}
+
+	.dont-skip-button, .skip-button {
+		display: block;
+		width: 50vw;
+		height: 30px;
+		margin: 15px auto;
 	}
 </style>

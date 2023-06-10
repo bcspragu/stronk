@@ -5,6 +5,7 @@ package fto
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -12,6 +13,12 @@ var (
 	ErrUserNotFound    = errors.New("user not found")
 	ErrNoSmallestDenom = errors.New("no smallest denom")
 )
+
+type ComparableLifts struct {
+	ClosestWeight    *Lift
+	PersonalRecord   *Lift
+	PREquivalentReps int
+}
 
 func MainExercises() []Exercise {
 	return []Exercise{
@@ -208,4 +215,22 @@ type Lift struct {
 	DayNumber       int
 	WeekNumber      int
 	IterationNumber int
+	ToFailure       bool
+}
+
+func (l *Lift) AsOneRepMax() Weight {
+	return Weight{
+		// ORM = Weight + (Weight * Num reps * 0.0333333)
+		Value: int(float64(l.Weight.Value) + 0.033333333*float64(l.Weight.Value)*float64(l.Reps)),
+		Unit:  l.Weight.Unit,
+	}
+}
+
+func (l *Lift) CalcEquivalentReps(weight Weight) int {
+	// To calculate how many reps that would be, we basically run the ORM calc in reverse:
+	// ORM = Weight + (Weight * Num reps * 0.0333333)
+	// (ORM - Weight) / (Weight * 0.0333333) = Num reps
+	orm := l.AsOneRepMax()
+	return int(math.Round(
+		float64(orm.Value-weight.Value) / (float64(weight.Value) * 0.03333333)))
 }
