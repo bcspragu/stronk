@@ -2,8 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -57,7 +57,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) initMux() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/api/user", s.serveUser)
+	mux.HandleFunc("/api/trainingMaxes", s.serveTrainingMaxes)
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
 	mux.HandleFunc("/api/nextLift", s.serveNextLift)
 	mux.HandleFunc("/api/recordLift", s.serveRecordLift)
@@ -66,7 +66,7 @@ func (s *Server) initMux() {
 	s.mux = mux
 }
 
-func (s *Server) serveUser(w http.ResponseWriter, r *http.Request) {
+func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
 		return
@@ -77,10 +77,26 @@ func (s *Server) serveUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// For JSON serialization
+	if tms == nil {
+		tms = []*fto.TrainingMax{}
+	}
+
+	var sd *fto.Weight
+	tmpSD, err := s.db.SmallestDenom()
+	if err == nil {
+		sd = &tmpSD
+	} else if errors.Is(err, fto.ErrNoSmallestDenom) {
+		// This is fine, just means we don't have one yet.
+	} else {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	jsonResp(w, struct {
 		TrainingMaxes []*fto.TrainingMax
-	}{tms})
+		SmallestDenom *fto.Weight
+	}{tms, sd})
 }
 
 func jsonResp(w http.ResponseWriter, resp interface{}) {
@@ -212,16 +228,15 @@ func (s *Server) serveNextLift(w http.ResponseWriter, r *http.Request) {
 }
 
 type nextLiftResp struct {
-	DayNumber          int
-	WeekNumber         int
-	IterationNumber    int
-	DayName            string
-	WeekName           string
-	Workout            []*fto.Movement
-	NextMovementIndex  int
-	NextSetIndex       int
-	OptionalWeek       bool
-	FailureComparables *fto.ComparableLifts
+	DayNumber         int
+	WeekNumber        int
+	IterationNumber   int
+	DayName           string
+	WeekName          string
+	Workout           []*fto.Movement
+	NextMovementIndex int
+	NextSetIndex      int
+	OptionalWeek      bool
 }
 
 func (s *Server) nextLiftResponse(w http.ResponseWriter) {
@@ -345,7 +360,6 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load smallest denom: %w", err)
 	}
 
-	var comparables *fto.ComparableLifts
 	mvmts := dayRoutine.Clone().Movements
 	for _, mvmt := range mvmts {
 		tm, ok := getTM(mvmt.Exercise)
@@ -355,29 +369,32 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		}
 		for _, set := range mvmt.Sets {
 			set.WeightTarget = roundWeight(tm, set.TrainingMaxPercentage, smallest)
-			if set.ToFailure {
-				if comparables == nil {
-					if comparables, err = s.db.ComparableLifts(mvmt.Exercise, set.WeightTarget); err != nil {
-						return nil, fmt.Errorf("failed to load comparables: %w", err)
-					}
-				} else {
-					log.Printf("apparently had multiple to_failure sets in the same day. week %d day %d", week, day)
-				}
+			if !set.ToFailure {
+				continue
 			}
+			comparables, err := s.db.ComparableLifts(mvmt.Exercise, set.WeightTarget)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load comparables: %w", err)
+			}
+			set.FailureComparables = comparables
 		}
 	}
 
+	// For JSON serialization
+	if mvmts == nil {
+		mvmts = []*fto.Movement{}
+	}
+
 	return &nextLiftResp{
-		DayNumber:          day,
-		WeekNumber:         week,
-		IterationNumber:    iter,
-		DayName:            dayRoutine.DayName,
-		WeekName:           routine.Weeks[week].WeekName,
-		Workout:            mvmts,
-		NextMovementIndex:  set.MovementIndex,
-		NextSetIndex:       set.SetIndex,
-		OptionalWeek:       day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
-		FailureComparables: comparables,
+		DayNumber:         day,
+		WeekNumber:        week,
+		IterationNumber:   iter,
+		DayName:           dayRoutine.DayName,
+		WeekName:          routine.Weeks[week].WeekName,
+		Workout:           mvmts,
+		NextMovementIndex: set.MovementIndex,
+		NextSetIndex:      set.SetIndex,
+		OptionalWeek:      day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
 	}, nil
 }
 

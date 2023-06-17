@@ -110,7 +110,7 @@ LIMIT 250`
 	}
 
 	pr := findPR(lfs)
-	var equivReps int
+	var equivReps float64
 	if pr != nil {
 		equivReps = pr.CalcEquivalentReps(weight)
 	}

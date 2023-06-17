@@ -11,6 +11,7 @@ export interface Set {
 	ToFailure: boolean;
 	TrainingMaxPercentage: number;
 	WeightTarget: Weight;
+	FailureComparables?: ComparableLifts;
 }
 
 export interface Movement {
@@ -49,7 +50,16 @@ export interface NextLiftResponse {
 	NextMovementIndex: number;
 	NextSetIndex: number;
 	OptionalWeek: boolean;
-	FailureComparables: ComparableLifts;
+}
+
+export interface TrainingMax {
+	Max: Weight
+	Exercise: Exercise
+}
+
+export interface TrainingMaxesResponse {
+	TrainingMaxes: TrainingMax[]
+	SmallestDenom?: Weight
 }
 
 export interface SetTrainingMaxesRequest {

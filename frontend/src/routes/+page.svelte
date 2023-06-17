@@ -5,11 +5,15 @@
 
 	export let data: PageData;
 
+	// Standard lift note
 	let note = '';
 	let showNote = false;
 
 	// Note specifically when skipping a deload week
 	let skipNote = '';
+
+	// Show editing reps on non-failure sets.
+	let editReps = false;
 
 	$: curMvmt = data.Workout[data.NextMovementIndex];
 	$: curSet = curMvmt.Sets[data.NextSetIndex];
@@ -59,8 +63,10 @@
 				data = dat
 			})
 			.finally(() => {
+				skipNote = ''
 				note = ''
 				showNote = false
+				editReps = false
 			});
 	};
 
@@ -80,9 +86,10 @@
 				data = dat
 			})
 			.finally(() => {
-				skipNote = false
+				skipNote = ''
 				note = ''
 				showNote = false
+				editReps = false
 			});
 	};
 </script>
@@ -124,7 +131,7 @@
 			<strong>{liftInfoStr2(curSet)}</strong>
 		</div>
 
-		{#if curSet.ToFailure}
+		{#if curSet.ToFailure || editReps}
 			<div class="lift-input-row">
 				<button class="weight-adj-button" on:click={decReps}>-</button>
 				<input
@@ -135,11 +142,11 @@
 					on:input={updateReps}
 				/>
 				<button class="weight-adj-button" on:click={incReps}>+</button>
-				{#if data.FailureComparables.ClosestWeight}
-					<div>Closest Comparison: {data.FailureComparables.ClosestWeight.Weight.Value / 10} x {data.FailureComparables.ClosestWeight.Reps}</div>
+				{#if curSet.FailureComparables?.ClosestWeight}
+					<div>Closest Comparison: {curSet.FailureComparables.ClosestWeight.Weight.Value / 10} x {curSet.FailureComparables.ClosestWeight.Reps}</div>
 				{/if}
-				{#if data.FailureComparables.PersonalRecord}
-					<div>Lift PR: {data.FailureComparables.PersonalRecord.Weight.Value / 10} x {data.FailureComparables.PersonalRecord.Reps} &thickapprox; {data.FailureComparables.PREquivalentReps} reps @ {curSet.WeightTarget.Value / 10} lbs</div>
+				{#if curSet.FailureComparables?.PersonalRecord}
+					<div>Lift PR: {curSet.FailureComparables.PersonalRecord.Weight.Value / 10} x {curSet.FailureComparables.PersonalRecord.Reps} &thickapprox; {curSet.FailureComparables.PREquivalentReps.toFixed(1)} reps @ {curSet.WeightTarget.Value / 10} lbs</div>
 				{/if}
 			</div>
 			<div>
@@ -156,6 +163,9 @@
 				<button class="add-note-button" on:click={() => showNote = true}>Add Note</button>
 			{/if}
 			<button class="back-button" on:click={() => alert('todo')}>Back</button>
+			{#if !editReps && !curSet.ToFailure}
+				<button class="edit-button" on:click={() => editReps = true}>Edit Reps</button>
+			{/if}
 		</div>
 	</div>
 	{/if}
@@ -228,7 +238,7 @@
 		-webkit-appearance: none;
 	}
 
-	.record-button, .skip-button, .add-note-button, .back-button {
+	.record-button, .skip-button, .add-note-button, .back-button, .edit-button {
 		display: block;
 		width: 50vw;
 		height: 30px;

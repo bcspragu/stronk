@@ -5,7 +5,6 @@ package fto
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 )
 
@@ -23,7 +22,7 @@ type SkippedWeek struct {
 type ComparableLifts struct {
 	ClosestWeight    *Lift
 	PersonalRecord   *Lift
-	PREquivalentReps int
+	PREquivalentReps float64
 }
 
 func MainExercises() []Exercise {
@@ -191,6 +190,9 @@ type Set struct {
 	// WeightTarget isn't set when users configure it, only in responses sent to
 	// clients.
 	WeightTarget Weight
+
+	// Only set if the lift is to failure (i.e. ToFailure == true)
+	FailureComparables *ComparableLifts
 }
 
 func (s *Set) Clone() *Set {
@@ -232,11 +234,10 @@ func (l *Lift) AsOneRepMax() Weight {
 	}
 }
 
-func (l *Lift) CalcEquivalentReps(weight Weight) int {
+func (l *Lift) CalcEquivalentReps(weight Weight) float64 {
 	// To calculate how many reps that would be, we basically run the ORM calc in reverse:
 	// ORM = Weight + (Weight * Num reps * 0.0333333)
 	// (ORM - Weight) / (Weight * 0.0333333) = Num reps
 	orm := l.AsOneRepMax()
-	return int(math.Round(
-		float64(orm.Value-weight.Value) / (float64(weight.Value) * 0.03333333)))
+	return float64((orm.Value-weight.Value)*30) / float64(weight.Value)
 }
