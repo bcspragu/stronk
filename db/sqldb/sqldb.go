@@ -109,61 +109,7 @@ LIMIT 250`
 		return nil, fmt.Errorf("failed to set lifts: %w", err)
 	}
 
-	pr := findPR(lfs)
-	var equivReps float64
-	if pr != nil {
-		equivReps = pr.CalcEquivalentReps(weight)
-	}
-	return &fto.ComparableLifts{
-		ClosestWeight:    findClosest(lfs, weight),
-		PersonalRecord:   pr,
-		PREquivalentReps: equivReps,
-	}, nil
-}
-
-func findClosest(lifts []*fto.Lift, weight fto.Weight) *fto.Lift {
-	if len(lifts) == 0 {
-		return nil
-	}
-
-	var (
-		closest  = abs(lifts[0].Weight.Value - weight.Value)
-		max, idx int
-	)
-	for i, l := range lifts {
-		dist := abs(l.Weight.Value - weight.Value)
-		orm := l.AsOneRepMax()
-		if dist < closest || dist == closest && orm.Value > max {
-			closest = dist
-			max = orm.Value
-			idx = i
-		}
-	}
-	return lifts[idx]
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func findPR(lifts []*fto.Lift) *fto.Lift {
-	if len(lifts) == 0 {
-		return nil
-	}
-
-	var max, maxIndex int
-	for i, l := range lifts {
-		orm := l.AsOneRepMax()
-		if orm.Value > max {
-			max = orm.Value
-			maxIndex = i
-		}
-	}
-
-	return lifts[maxIndex]
+	return fto.CalcComparables(lfs, weight), nil
 }
 
 func (db *DB) RecentLifts() ([]*fto.Lift, error) {

@@ -241,3 +241,61 @@ func (l *Lift) CalcEquivalentReps(weight Weight) float64 {
 	orm := l.AsOneRepMax()
 	return float64((orm.Value-weight.Value)*30) / float64(weight.Value)
 }
+
+func FindPR(lifts []*Lift) *Lift {
+	if len(lifts) == 0 {
+		return nil
+	}
+
+	var max, maxIndex int
+	for i, l := range lifts {
+		orm := l.AsOneRepMax()
+		if orm.Value > max {
+			max = orm.Value
+			maxIndex = i
+		}
+	}
+
+	return lifts[maxIndex]
+}
+
+func CalcComparables(lifts []*Lift, weight Weight) *ComparableLifts {
+	pr := FindPR(lifts)
+	var equivReps float64
+	if pr != nil {
+		equivReps = pr.CalcEquivalentReps(weight)
+	}
+	return &ComparableLifts{
+		ClosestWeight:    FindClosest(lifts, weight),
+		PersonalRecord:   pr,
+		PREquivalentReps: equivReps,
+	}
+}
+
+func FindClosest(lifts []*Lift, weight Weight) *Lift {
+	if len(lifts) == 0 {
+		return nil
+	}
+
+	var (
+		closest  = abs(lifts[0].Weight.Value - weight.Value)
+		max, idx int
+	)
+	for i, l := range lifts {
+		dist := abs(l.Weight.Value - weight.Value)
+		orm := l.AsOneRepMax()
+		if dist < closest || dist == closest && orm.Value > max {
+			closest = dist
+			max = orm.Value
+			idx = i
+		}
+	}
+	return lifts[idx]
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
