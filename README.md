@@ -41,6 +41,111 @@ The server stores lift info in a SQLite database, which will be created + migrat
 
 Frontend is available at `localhost:5173`, backend is `localhost:8080`.
 
+## Deployment
+
+The main way to deploy this is with two Docker containers `fivethreeone` and `fivethreeone-fe`, which run the backend and frontend respectively. I run this in a local K8s deployment, using a config like:
+
+<details>
+
+<summary>fivethreeone.yaml</summary>
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fivethreeone-deployment
+  labels:
+    app: fivethreeone
+spec:
+  selector:
+    matchLabels:
+      app: fivethreeone
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: fivethreeone
+    spec:
+        containers:
+        - image: <registry>/fivethreeone-fe
+          name: frontend
+          env:
+          - name: PUBLIC_API_BASE_URL
+            value: "http://localhost:8080"
+          ports:
+            - containerPort: 3000
+              name: web
+        - image: <registry>/fivethreeone
+          name: backend
+          env:
+          - name: ROUTINE_FILE
+            value: /config/routine.json
+          - name: DB_FILE
+            value: /data/fivethreeone.db
+          - name: MIGRATION_DIR
+            value: /migrations
+          ports:
+            - containerPort: 8080
+              name: http-api
+          volumeMounts:
+          - name: site-data
+            mountPath: "/data"
+            subPath: fivethreeone
+          - name: config
+            mountPath: "/config"
+            readOnly: true
+        volumes:
+        - name: site-data
+          # TODO: Some kind of mount for the SQLite database
+        - name: config
+          configMap:
+            name: fivethreeone-config
+          # This contains the routine.json file for your specific program.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fivethreeone
+spec:
+  selector:
+    app: fivethreeone
+  ports:
+    - name: web
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+    - name: http-api
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+```
+
+</details>
+
+And then deploy it behind something like Caddy with:
+
+<details>
+
+<summary>Caddyfile</summary>
+
+```caddy
+https://stronk.<domain> {
+	encode gzip
+
+	handle /api/* {
+		reverse_proxy fivethreeone.<namespace>.svc.cluster.local:8080
+	}
+
+	handle {
+		reverse_proxy fivethreeone.<namespace>.svc.cluster.local:3000
+	}
+}
+```
+
+</details>
+
+
 ## TODO
 
 - [ ] Make a "back"/edit button

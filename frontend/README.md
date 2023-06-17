@@ -1,22 +1,10 @@
-# create-svelte
+# stronk frontend
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
-
-```bash
-# create a new project in the current directory
-npm create svelte@latest
-
-# create a new project in my-app
-npm create svelte@latest my-app
-```
+A barebones SvelteKit/TypeScript frontend that allows viewing + recording lifts, and setting training maxes.
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Once you've installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
 
 ```bash
 npm run dev
@@ -27,12 +15,26 @@ npm run dev -- --open
 
 ## Building
 
-To create a production version of your app:
+To create a more 'production' version of app:
 
 ```bash
-npm run build
+npm run build:dev
 ```
 
 You can preview the production build with `npm run preview`.
 
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+## Deploying
+
+To build the actual production version of the app, run:
+
+```bash
+npm run build:cloud
+```
+
+This is kind of a misnomer, as it uses the default Node adapter and can then be packaged up into a Docker image with:
+
+```bash
+docker build -t <registry host>/fivethreeone-fe .
+```
+
+Personally, I deploy it on a homelab k8s cluster, but this same image should be fine to deploy on any cloud provider that can run Docker image (e.g. AWS Lambda or Fargate, GCP Cloud Run or Functions or App Engine Flex, Azure App Services, etc). See [the main README](/README.md) for more deployment details.
