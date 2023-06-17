@@ -43,6 +43,8 @@ Frontend is available at `localhost:5173`, backend is `localhost:8080`.
 
 ## Deployment
 
+Note: the app has no authentication, make sure to introduce basic auth or deploy the app behind something like [Tailscale](https://tailscale.com/)
+
 The main way to deploy this is with two Docker containers `fivethreeone` and `fivethreeone-fe`, which run the backend and frontend respectively. I run this in a local K8s deployment, using a config like:
 
 <details>

@@ -1,0 +1,1156 @@
+{
+  "Name": "Big But Boring 5/3/1",
+  "Weeks": [
+    {
+      "WeekName": "Week 1",
+      "Days": [
+        {
+          "DayName": "Press Day",
+          "Movements": [
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 65
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 85
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Squat Day",
+          "Movements": [
+            {
+              "Exercise": "SQUAT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 65
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 85
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Bench Day",
+          "Movements": [
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 65
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 85
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Deadlift Day",
+          "Movements": [
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 65
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 85
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+
+    {
+      "WeekName": "Week 2",
+      "Days": [
+        {
+          "DayName": "Press Day",
+          "Movements": [
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 70
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 80
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 90
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Squat Day",
+          "Movements": [
+            {
+              "Exercise": "SQUAT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 70
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 80
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 90
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Bench Day",
+          "Movements": [
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 70
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 80
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 90
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Deadlift Day",
+          "Movements": [
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 70
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 80
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 90
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+
+    {
+      "WeekName": "Week 3",
+      "Days": [
+        {
+          "DayName": "Press Day",
+          "Movements": [
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 85
+                },
+                {
+                  "RepTarget": 1,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 95
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Squat Day",
+          "Movements": [
+            {
+              "Exercise": "SQUAT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 85
+                },
+                {
+                  "RepTarget": 1,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 95
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 30
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Bench Day",
+          "Movements": [
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 85
+                },
+                {
+                  "RepTarget": 1,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 95
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Deadlift Day",
+          "Movements": [
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 75
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 85
+                },
+                {
+                  "RepTarget": 1,
+                  "ToFailure": true,
+                  "TrainingMaxPercentage": 95
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "ASSISTANCE",
+              "Sets": [
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 10,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+
+    {
+      "WeekName": "Deload Week",
+      "Optional": true,
+      "Days": [
+        {
+          "DayName": "Press Day",
+          "Movements": [
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "OVERHEAD_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Squat Day",
+          "Movements": [
+            {
+              "Exercise": "SQUAT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "SQUAT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Bench Day",
+          "Movements": [
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "BENCH_PRESS",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "DayName": "Deadlift Day",
+          "Movements": [
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "WARMUP",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 3,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            },
+            {
+              "Exercise": "DEADLIFT",
+              "SetType": "MAIN",
+              "Sets": [
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 40
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 50
+                },
+                {
+                  "RepTarget": 5,
+                  "ToFailure": false,
+                  "TrainingMaxPercentage": 60
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
