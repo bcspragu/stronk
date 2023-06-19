@@ -3,8 +3,8 @@ export interface Weight {
 	Value: number;
 }
 
-export type SetType = 'WARMUP' | 'MAIN' | 'ASSISTANCE'
-export type Exercise = 'OVERHEAD_PRESS' | 'SQUAT' | 'BENCH_PRESS' | 'DEADLIFT'
+export type SetType = 'WARMUP' | 'MAIN' | 'ASSISTANCE';
+export type Exercise = 'OVERHEAD_PRESS' | 'SQUAT' | 'BENCH_PRESS' | 'DEADLIFT';
 
 export interface Set {
 	RepTarget: number;
@@ -23,7 +23,7 @@ export interface Movement {
 
 export interface Lift {
 	ID: number;
-	Exercise:  Exercise;
+	Exercise: Exercise;
 	SetType: SetType;
 	Weight: Weight;
 	SetNumber: number;
@@ -37,14 +37,14 @@ export interface Lift {
 }
 
 export interface ComparableLifts {
-	ClosestWeight?: Lift
-	PersonalRecord?: Lift
-	PREquivalentReps: number
+	ClosestWeight?: Lift;
+	PersonalRecord?: Lift;
+	PREquivalentReps: number;
 }
 
 export interface RecordLiftResponse {
-	LiftID: number
-	NextLift: NextLiftResponse
+	LiftID: number;
+	NextLift: NextLiftResponse;
 }
 
 export interface NextLiftResponse {
@@ -60,38 +60,38 @@ export interface NextLiftResponse {
 }
 
 export interface TrainingMax {
-	Max: Weight
-	Exercise: Exercise
+	Max: Weight;
+	Exercise: Exercise;
 }
 
 export interface TrainingMaxesResponse {
-	TrainingMaxes: TrainingMax[]
-	SmallestDenom?: Weight
+	TrainingMaxes: TrainingMax[];
+	SmallestDenom?: Weight;
 }
 
 export interface SetTrainingMaxesRequest {
-		OverheadPress: string
-		Squat: string
-		BenchPress: string
-		Deadlift: string
-		SmallestDenom: string
+	OverheadPress: string;
+	Squat: string;
+	BenchPress: string;
+	Deadlift: string;
+	SmallestDenom: string;
 }
 
 export interface RecordLiftRequest {
-  Exercise: Exercise
-  SetType: SetType
-  Weight: string
-  Set: number
-  Reps: number
-  Note: string
-  Day: number
-  Week: number
-  Iteration: number
-	ToFailure: boolean
+	Exercise: Exercise;
+	SetType: SetType;
+	Weight: string;
+	Set: number;
+	Reps: number;
+	Note: string;
+	Day: number;
+	Week: number;
+	Iteration: number;
+	ToFailure: boolean;
 }
 
 export interface SkipOptionalWeekRequest {
-  Week: number
-  Iteration: number
-	Note: string
+	Week: number;
+	Iteration: number;
+	Note: string;
 }

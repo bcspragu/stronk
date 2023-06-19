@@ -1,8 +1,16 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import type { RecordLiftRequest, Movement, Set, NextLiftResponse, SkipOptionalWeekRequest, RecordLiftResponse, Lift} from '$lib/api';
-	import apipath from '$lib/apipath'
-	import Modal from '$lib/Modal.svelte'
+	import type {
+		RecordLiftRequest,
+		Movement,
+		Set,
+		NextLiftResponse,
+		SkipOptionalWeekRequest,
+		RecordLiftResponse,
+		Lift
+	} from '$lib/api';
+	import apipath from '$lib/apipath';
+	import Modal from '$lib/Modal.svelte';
 
 	export let data: PageData;
 
@@ -19,7 +27,7 @@
 	// Show editing reps on non-failure sets.
 	let showEditReps = false;
 
-	let editingLift: Lift | undefined = undefined
+	let editingLift: Lift | undefined = undefined;
 	let editReps = 0;
 	let editNote = '';
 
@@ -45,17 +53,19 @@
 	};
 
 	const liftInfoStr1 = (mvmt: Movement): string => {
-		return `[${mvmt.SetType}] ${mvmt.Exercise}`
+		return `[${mvmt.SetType}] ${mvmt.Exercise}`;
 	};
 
 	const liftInfoStr2 = (set: Set): string => {
-		const suffix = set.ToFailure ? '+' : ''
-		return  `${set.WeightTarget.Value / 10} lbs for ${set.RepTarget}${suffix}`
+		const suffix = set.ToFailure ? '+' : '';
+		return `${set.WeightTarget.Value / 10} lbs for ${set.RepTarget}${suffix}`;
 	};
 
 	const setString = (set: Set): string => {
-		const suffix = set.ToFailure ? '+' : ''
-		return `[${set.TrainingMaxPercentage}%] ${set.WeightTarget.Value / 10} x ${set.RepTarget}${suffix}`
+		const suffix = set.ToFailure ? '+' : '';
+		return `[${set.TrainingMaxPercentage}%] ${set.WeightTarget.Value / 10} x ${
+			set.RepTarget
+		}${suffix}`;
 	};
 
 	const record = (numReps: number) => {
@@ -69,21 +79,21 @@
 			Day: data.DayNumber,
 			Week: data.WeekNumber,
 			Iteration: data.IterationNumber,
-			ToFailure: curSet.ToFailure,
+			ToFailure: curSet.ToFailure
 		} as RecordLiftRequest;
 
-		updating = true
+		updating = true;
 		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json() as Promise<RecordLiftResponse>)
 			.then((dat) => {
-				data = dat.NextLift
+				data = dat.NextLift;
 			})
 			.finally(() => {
-				skipNote = ''
-				note = ''
-				showNote = false
-				showEditReps = false
-				updating = false
+				skipNote = '';
+				note = '';
+				showNote = false;
+				showEditReps = false;
+				updating = false;
 			});
 	};
 
@@ -94,56 +104,57 @@
 		var req = {
 			Week: data.WeekNumber,
 			Iteration: data.IterationNumber,
-			Note: skipNote,
+			Note: skipNote
 		} as SkipOptionalWeekRequest;
 
-		updating = true
+		updating = true;
 		fetch(apipath('/api/skipOptionalWeek'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json() as Promise<NextLiftResponse>)
 			.then((dat) => {
-				data = dat
+				data = dat;
 			})
 			.finally(() => {
-				skipNote = ''
-				note = ''
-				showNote = false
-				showEditReps = false
-				updating = false
+				skipNote = '';
+				note = '';
+				showNote = false;
+				showEditReps = false;
+				updating = false;
 			});
 	};
 
 	const setEditingLift = async (liftID?: number) => {
 		if (!liftID) {
-			return
+			return;
 		}
-		const params = { id: liftID.toString() }
+		const params = { id: liftID.toString() };
 		const res = await fetch(apipath('/api/lift', params));
 		const lift: Lift = await res.json();
-		editReps = lift.Reps
-		editNote = lift.Note
-		editingLift = lift
-	}
+		editReps = lift.Reps;
+		editNote = lift.Note;
+		editingLift = lift;
+	};
 
 	const clearEditingLift = () => {
-		editingLift = undefined
-	}
+		editingLift = undefined;
+	};
 
 	const editExistingLift = () => {
 		if (!editingLift) {
-			return
+			return;
 		}
 		const req = {
 			id: editingLift.ID,
 			note: editNote,
-			reps: editReps,
-		}
-		updating = true
-		fetch(apipath('/api/editLift'), {method: 'POST', body: JSON.stringify(req)}).then(clearEditingLift).finally(() => updating = false)
-	}
+			reps: editReps
+		};
+		updating = true;
+		fetch(apipath('/api/editLift'), { method: 'POST', body: JSON.stringify(req) })
+			.then(clearEditingLift)
+			.finally(() => (updating = false));
+	};
 </script>
 
 <div class="lifts-page">
-
 	<Modal active={!!editingLift} on:close={clearEditingLift}>
 		{#if editingLift}
 			<h1>Edit Lift ID #{editingLift.ID}</h1>
@@ -152,92 +163,97 @@
 		{/if}
 		<div class="lift-input-row">
 			<button class="weight-adj-button" on:click={decEditReps}>-</button>
-			<input
-				class="lift-input"
-				type="number"
-				name="Lift Input"
-				bind:value={editReps}
-			/>
+			<input class="lift-input" type="number" name="Lift Input" bind:value={editReps} />
 			<button class="weight-adj-button" on:click={incEditReps}>+</button>
 		</div>
 		<textarea class="note" bind:value={editNote} rows="3" />
-		<button class="edit-button" on:click={editExistingLift} on:keypress={editExistingLift}>Edit</button>
+		<button class="edit-button" on:click={editExistingLift} on:keypress={editExistingLift}
+			>Edit</button
+		>
 	</Modal>
 
 	{#if data.OptionalWeek}
-			<h1 class="header">Skip optional<br>{data.WeekName}?</h1>
-			<button class="dont-skip-button" on:click={() => data.OptionalWeek = false}>Do the week</button>
-			<button class="skip-button" on:click={skipOptionalWeek}>Skip it</button>
-			<textarea class="note" bind:value={skipNote} rows="3" />
+		<h1 class="header">Skip optional<br />{data.WeekName}?</h1>
+		<button class="dont-skip-button" on:click={() => (data.OptionalWeek = false)}
+			>Do the week</button
+		>
+		<button class="skip-button" on:click={skipOptionalWeek}>Skip it</button>
+		<textarea class="note" bind:value={skipNote} rows="3" />
 	{:else}
-	<h1 class="header">{data.WeekName} - {data.DayName}</h1>
+		<h1 class="header">{data.WeekName} - {data.DayName}</h1>
 
-	<ul class="lift-list">
-		{#each data.Workout as mvmt, i}
-			<li>
-				{mvmt.Exercise} - {mvmt.SetType}
-				<ul>
-					{#each mvmt.Sets as set, j}
-						<li
-							class:current-lift={i === data.NextMovementIndex && j === data.NextSetIndex}
-							class:completed={i < data.NextMovementIndex ||
-								(i == data.NextMovementIndex && j < data.NextSetIndex)}
-							on:click={() => setEditingLift(set.AssociatedLiftID)}
-							on:keypress={() => setEditingLift(set.AssociatedLiftID)}
-						>
-							{setString(set)}
-						</li>
-					{/each}
-				</ul>
-			</li>
-		{/each}
-	</ul>
+		<ul class="lift-list">
+			{#each data.Workout as mvmt, i}
+				<li>
+					{mvmt.Exercise} - {mvmt.SetType}
+					<ul>
+						{#each mvmt.Sets as set, j}
+							<li
+								class:current-lift={i === data.NextMovementIndex && j === data.NextSetIndex}
+								class:completed={i < data.NextMovementIndex ||
+									(i == data.NextMovementIndex && j < data.NextSetIndex)}
+								on:click={() => setEditingLift(set.AssociatedLiftID)}
+								on:keypress={() => setEditingLift(set.AssociatedLiftID)}
+							>
+								{setString(set)}
+							</li>
+						{/each}
+					</ul>
+				</li>
+			{/each}
+		</ul>
 
-	<hr class="spacer">
+		<hr class="spacer" />
 
-	<div class="lift-entry">
-		<div class="lift-info">
-			{liftInfoStr1(curMvmt)}
-			<br>
-			<strong>{liftInfoStr2(curSet)}</strong>
-		</div>
-
-		{#if curSet.ToFailure || showEditReps}
-			<div class="lift-input-row">
-				<button class="weight-adj-button" on:click={decReps}>-</button>
-				<input
-					class="lift-input"
-					type="number"
-					name="Lift Input"
-					value={reps}
-					on:input={updateReps}
-				/>
-				<button class="weight-adj-button" on:click={incReps}>+</button>
-				{#if curSet.FailureComparables?.ClosestWeight}
-					<div>Closest Comparison: {curSet.FailureComparables.ClosestWeight.Weight.Value / 10} x {curSet.FailureComparables.ClosestWeight.Reps}</div>
-				{/if}
-				{#if curSet.FailureComparables?.PersonalRecord}
-					<div>Lift PR: {curSet.FailureComparables.PersonalRecord.Weight.Value / 10} x {curSet.FailureComparables.PersonalRecord.Reps} &thickapprox; {curSet.FailureComparables.PREquivalentReps.toFixed(1)} reps @ {curSet.WeightTarget.Value / 10} lbs</div>
-				{/if}
+		<div class="lift-entry">
+			<div class="lift-info">
+				{liftInfoStr1(curMvmt)}
+				<br />
+				<strong>{liftInfoStr2(curSet)}</strong>
 			</div>
-			<div>
 
+			{#if curSet.ToFailure || showEditReps}
+				<div class="lift-input-row">
+					<button class="weight-adj-button" on:click={decReps}>-</button>
+					<input
+						class="lift-input"
+						type="number"
+						name="Lift Input"
+						value={reps}
+						on:input={updateReps}
+					/>
+					<button class="weight-adj-button" on:click={incReps}>+</button>
+					{#if curSet.FailureComparables?.ClosestWeight}
+						<div>
+							Closest Comparison: {curSet.FailureComparables.ClosestWeight.Weight.Value / 10} x {curSet
+								.FailureComparables.ClosestWeight.Reps}
+						</div>
+					{/if}
+					{#if curSet.FailureComparables?.PersonalRecord}
+						<div>
+							Lift PR: {curSet.FailureComparables.PersonalRecord.Weight.Value / 10} x {curSet
+								.FailureComparables.PersonalRecord.Reps} &thickapprox; {curSet.FailureComparables.PREquivalentReps.toFixed(
+								1
+							)} reps @ {curSet.WeightTarget.Value / 10} lbs
+						</div>
+					{/if}
+				</div>
+				<div />
+			{/if}
+
+			<div class="lift-bottom-row">
+				<button class="record-button" on:click={recordLift} disabled={updating}>Record</button>
+				{#if showNote}
+					<textarea class="note" bind:value={note} rows="3" />
+				{:else}
+					<button class="add-note-button" on:click={() => (showNote = true)}>Add Note</button>
+				{/if}
+				{#if !showEditReps && !curSet.ToFailure}
+					<button class="edit-button" on:click={() => (showEditReps = true)}>Edit Reps</button>
+				{/if}
+				<button class="skip-button" on:click={recordSkip} disabled={updating}>Skip</button>
 			</div>
-		{/if}
-
-		<div class="lift-bottom-row">
-			<button class="record-button" on:click={recordLift} disabled={updating}>Record</button>
-			{#if showNote}
-				<textarea class="note" bind:value={note} rows="3" />
-			{:else}
-				<button class="add-note-button" on:click={() => showNote = true}>Add Note</button>
-			{/if}
-			{#if !showEditReps && !curSet.ToFailure}
-				<button class="edit-button" on:click={() => showEditReps = true}>Edit Reps</button>
-			{/if}
-			<button class="skip-button" on:click={recordSkip} disabled={updating}>Skip</button>
 		</div>
-	</div>
 	{/if}
 </div>
 
@@ -308,7 +324,10 @@
 		-webkit-appearance: none;
 	}
 
-	.record-button, .skip-button, .add-note-button, .back-button, .edit-button {
+	.record-button,
+	.skip-button,
+	.add-note-button,
+	.edit-button {
 		display: block;
 		width: 50vw;
 		height: 30px;
@@ -336,7 +355,8 @@
 		text-align: center;
 	}
 
-	.dont-skip-button, .skip-button {
+	.dont-skip-button,
+	.skip-button {
 		display: block;
 		width: 50vw;
 		height: 30px;

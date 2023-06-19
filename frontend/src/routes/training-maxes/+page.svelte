@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
-	import apipath from '$lib/apipath'
+	import apipath from '$lib/apipath';
 	import type { Exercise, SetTrainingMaxesRequest } from '$lib/api';
 
 	export let data: PageData;
@@ -9,16 +9,16 @@
 	const getTM = (ex: Exercise): number | undefined => {
 		for (const tm of data.TrainingMaxes) {
 			if (tm.Exercise === ex) {
-				return tm.Max.Value / 10
+				return tm.Max.Value / 10;
 			}
 		}
-		return undefined
-	}
+		return undefined;
+	};
 
-	let press =	getTM('OVERHEAD_PRESS') 
-	let squat = getTM('SQUAT')
-	let bench = getTM('BENCH_PRESS')
-	let deadlift = getTM('DEADLIFT')
+	let press = getTM('OVERHEAD_PRESS');
+	let squat = getTM('SQUAT');
+	let bench = getTM('BENCH_PRESS');
+	let deadlift = getTM('DEADLIFT');
 
 	// The smallest denominator is the minimal delta between two loads that you
 	// can do with your equipment, the smallest increment of change. E.g what's the
@@ -26,11 +26,11 @@
 	// - If you only have 5 lb plates, it's 110.
 	// - 2.5 lb plates? 105.
 	// - 1.25 lb plates? 102.5
-  //
+	//
 	// We don't allow lower than that because it doesn't play nice with our silly
 	// decipound system, and at that point we're getting into rounding noise anyway,
 	// e.g. the barbell collars would probably throw off your .625 increment.
-	let smallestDenom = data.SmallestDenom ? data.SmallestDenom.Value / 10 : undefined
+	let smallestDenom = data.SmallestDenom ? data.SmallestDenom.Value / 10 : undefined;
 
 	$: canSubmit =
 		press !== undefined &&
@@ -70,7 +70,7 @@
 <input type="number" bind:value={squat} placeholder="Squat Max" name="Squat" />
 <input type="number" bind:value={bench} placeholder="Bench Max" name="Bench" />
 <input type="number" bind:value={deadlift} placeholder="Deadlift Max" name="Deadlift" />
-<br>
+<br />
 <label for="smallest-plate-input">Smallest Plate</label>
 <select bind:value={smallestDenom} name="Smallest Plate">
 	<option value={undefined} selected>Please choose</option>
@@ -78,5 +78,5 @@
 	<option value={5}>2.5</option>
 	<option value={10}>5</option>
 </select>
-<br>
+<br />
 <button on:click={setTrainingMaxes} disabled={!canSubmit}>Enter</button>
