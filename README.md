@@ -150,8 +150,8 @@ https://stronk.<domain> {
 
 ## TODO
 
-- [ ] Make a "back"/edit button
-  - The button exists, but doesn't currently work
+- [x] Make a "back"/edit button
+  - One can now edit by tapping a previous lift
 - [x] Make record button bigger, and farther away from skip
 - [x] Add a feature to see similar "to failure" sets
 - [x] Highlight personal records
