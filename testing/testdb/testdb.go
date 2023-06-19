@@ -2,6 +2,7 @@
 package testdb
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/lexacali/fivethreeone/fto"
@@ -11,20 +12,35 @@ func New() *DB {
 	return &DB{}
 }
 
-type lift struct {
-	*fto.Lift
-	idx int
-}
-
 type DB struct {
-	lifts          []lift
+	lifts          []*fto.Lift
 	trainingMaxes  []*fto.TrainingMax
 	smallestDenoms []fto.Weight
 	skippedWeeks   []fto.SkippedWeek
 }
 
+func (db *DB) Lift(id fto.LiftID) (*fto.Lift, error) {
+	for _, l := range db.lifts {
+		if l.ID == id {
+			return l, nil
+		}
+	}
+	return nil, fmt.Errorf("lift %d not found", id)
+}
+
+func (db *DB) EditLift(id fto.LiftID, note string, reps int) error {
+	for _, l := range db.lifts {
+		if l.ID == id {
+			l.Note = note
+			l.Reps = reps
+			return nil
+		}
+	}
+	return fmt.Errorf("lift %d not found", id)
+}
+
 func (db *DB) RecentLifts() ([]*fto.Lift, error) {
-	lifts := make([]lift, len(db.lifts))
+	lifts := make([]*fto.Lift, len(db.lifts))
 	copy(lifts, db.lifts)
 
 	sort.Slice(lifts, func(i, j int) bool {
@@ -39,34 +55,28 @@ func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 		if lifts[i].DayNumber != lifts[j].DayNumber {
 			return lifts[i].DayNumber > lifts[j].DayNumber
 		}
-		return lifts[i].idx > lifts[j].idx
+		return lifts[i].ID > lifts[j].ID
 	})
 
-	var out []*fto.Lift
-	for _, l := range lifts {
-		out = append(out, l.Lift)
-	}
-
-	return out, nil
+	return lifts, nil
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error {
-	db.lifts = append(db.lifts, lift{
-		Lift: &fto.Lift{
-			Exercise:        ex,
-			SetType:         st,
-			Weight:          weight,
-			SetNumber:       set,
-			Reps:            reps,
-			DayNumber:       day,
-			WeekNumber:      week,
-			IterationNumber: iter,
-			Note:            note,
-			ToFailure:       toFailure,
-		},
-		idx: len(db.lifts),
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error) {
+	id := fto.LiftID(len(db.lifts) + 1)
+	db.lifts = append(db.lifts, &fto.Lift{
+		ID:              id,
+		Exercise:        ex,
+		SetType:         st,
+		Weight:          weight,
+		SetNumber:       set,
+		Reps:            reps,
+		DayNumber:       day,
+		WeekNumber:      week,
+		IterationNumber: iter,
+		Note:            note,
+		ToFailure:       toFailure,
 	})
-	return nil
+	return id, nil
 }
 
 func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {

@@ -29,7 +29,10 @@ type DB interface {
 	SetSmallestDenom(small fto.Weight) error
 	SmallestDenom() (fto.Weight, error)
 
-	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error
+	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error)
+
+	Lift(id fto.LiftID) (*fto.Lift, error)
+	EditLift(id fto.LiftID, note string, reps int) error
 	RecentLifts() ([]*fto.Lift, error)
 	ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error)
 }
@@ -59,8 +62,12 @@ func (s *Server) initMux() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/trainingMaxes", s.serveTrainingMaxes)
 	mux.HandleFunc("/api/setTrainingMaxes", s.serveSetTrainingMaxes)
+
 	mux.HandleFunc("/api/nextLift", s.serveNextLift)
 	mux.HandleFunc("/api/recordLift", s.serveRecordLift)
+	mux.HandleFunc("/api/lift", s.serveLoadLift)
+	mux.HandleFunc("/api/editLift", s.serveEditLift)
+
 	mux.HandleFunc("/api/skipOptionalWeek", s.skipOptionalWeek)
 
 	s.mux = mux
@@ -97,6 +104,53 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		TrainingMaxes []*fto.TrainingMax
 		SmallestDenom *fto.Weight
 	}{tms, sd})
+}
+
+func (s *Server) serveLoadLift(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	q := r.URL.Query()
+
+	id, err := strconv.Atoi(q.Get("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	lift, err := s.db.Lift(fto.LiftID(id))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	jsonResp(w, lift)
+}
+
+func (s *Server) serveEditLift(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid method", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type editReq struct {
+		ID   fto.LiftID `json:"id"`
+		Note string     `json:"note"`
+		Reps int        `json:"reps"`
+	}
+
+	var req editReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	err := s.db.EditLift(req.ID, req.Note, req.Reps)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func jsonResp(w http.ResponseWriter, resp interface{}) {
@@ -258,6 +312,29 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load recent lifts: %w", err)
 	}
 
+	// Map iteration -> week -> day -> set type -> lifts
+	m := make(map[int]map[int]map[int]map[fto.SetType][]*fto.Lift)
+	for _, l := range lifts {
+		wm, ok := m[l.IterationNumber]
+		if !ok {
+			wm = make(map[int]map[int]map[fto.SetType][]*fto.Lift)
+		}
+		dm, ok := wm[l.WeekNumber]
+		if !ok {
+			dm = make(map[int]map[fto.SetType][]*fto.Lift)
+		}
+		stm, ok := dm[l.DayNumber]
+		if !ok {
+			stm = make(map[fto.SetType][]*fto.Lift)
+		}
+		lfs := stm[l.SetType]
+		lfs = append(lfs, l)
+		stm[l.SetType] = lfs
+		dm[l.DayNumber] = stm
+		wm[l.WeekNumber] = dm
+		m[l.IterationNumber] = wm
+	}
+
 	skipWeeks, err := s.db.SkippedWeeks()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load skipped weeks: %w", err)
@@ -360,6 +437,35 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load smallest denom: %w", err)
 	}
 
+	associatedLift := func(st fto.SetType, ex fto.Exercise, setNum int) (fto.LiftID, bool) {
+		wm, ok := m[iter]
+		if !ok {
+			return 0, false
+		}
+		dm, ok := wm[week]
+		if !ok {
+			return 0, false
+		}
+		stm, ok := dm[day]
+		if !ok {
+			return 0, false
+		}
+		lfs, ok := stm[st]
+		if !ok {
+			return 0, false
+		}
+		for _, l := range lfs {
+			if l.Exercise != ex {
+				continue
+			}
+			if l.SetNumber != setNum {
+				continue
+			}
+			return l.ID, true
+		}
+		return 0, false
+	}
+
 	mvmts := dayRoutine.Clone().Movements
 	for _, mvmt := range mvmts {
 		tm, ok := getTM(mvmt.Exercise)
@@ -367,8 +473,13 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 			// Just skip this one if we didn't set it.
 			continue
 		}
-		for _, set := range mvmt.Sets {
+		for i, set := range mvmt.Sets {
 			set.WeightTarget = roundWeight(tm, set.TrainingMaxPercentage, smallest)
+			id, ok := associatedLift(mvmt.SetType, mvmt.Exercise, i)
+			if ok {
+				set.AssociatedLiftID = id
+			}
+
 			if !set.ToFailure {
 				continue
 			}
@@ -453,12 +564,24 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure); err != nil {
+	id, err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
+	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to record lift: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	s.nextLiftResponse(w)
+	nextLift, err := s.nextLift()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResp(w, recordLiftResp{id, nextLift})
+}
+
+type recordLiftResp struct {
+	LiftID   fto.LiftID
+	NextLift *nextLiftResp
 }
 
 func (s *Server) skipOptionalWeek(w http.ResponseWriter, r *http.Request) {

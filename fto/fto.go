@@ -193,6 +193,9 @@ type Set struct {
 
 	// Only set if the lift is to failure (i.e. ToFailure == true)
 	FailureComparables *ComparableLifts
+
+	// Only set if we found a match, won't always be the case.
+	AssociatedLiftID LiftID
 }
 
 func (s *Set) Clone() *Set {
@@ -208,7 +211,10 @@ func (s *Set) Clone() *Set {
 	}
 }
 
+type LiftID int
+
 type Lift struct {
+	ID        LiftID
 	Exercise  Exercise
 	SetType   SetType
 	Weight    Weight

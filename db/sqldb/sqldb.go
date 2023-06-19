@@ -32,16 +32,64 @@ type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) error {
+func (db *DB) EditLift(id fto.LiftID, note string, reps int) error {
 	return db.transact(func(tx *sql.Tx) error {
+		q := `
+UPDATE lifts
+	SET reps = ?, lift_note = ?
+WHERE id = ?
+`
+		_, err := tx.Exec(q, reps, note, id)
+		return err
+	})
+}
+
+func (db *DB) Lift(id fto.LiftID) (*fto.Lift, error) {
+	var lift *fto.Lift
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
+FROM lifts
+JOIN exercises
+	ON lifts.exercise_id = exercises.id
+WHERE lifts.id = ?`
+
+		rows, err := tx.Query(q, id)
+		if err != nil {
+			return fmt.Errorf("failed to query training_maxes: %w", err)
+		}
+		lfs, err := lifts(rows)
+		if err != nil {
+			return fmt.Errorf("failed to scan training_maxes: %w", err)
+		}
+		if n := len(lfs); n != 1 {
+			return fmt.Errorf("unexpected number of lifts %d", n)
+		}
+		lift = lfs[0]
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set lifts: %w", err)
+	}
+	return lift, nil
+}
+
+func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error) {
+	var id fto.LiftID
+	err := db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO lifts
 (exercise_id, set_type, set_number, reps, weight, day_number, week_number, iteration_number, lift_note, to_failure)
-VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-		if _, err := tx.Exec(q, ex, st, set, reps, &sqlWeight{&weight}, day, week, iter, nullString(note), toFailure); err != nil {
+VALUES ((SELECT id FROM exercises WHERE name = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING lifts.id`
+		if err := tx.QueryRow(q, ex, st, set, reps, &sqlWeight{&weight}, day, week, iter, nullString(note), toFailure).Scan(&id); err != nil {
 			return fmt.Errorf("failed to insert lift: %w", err)
 		}
 		return nil
 	})
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (db *DB) SkippedWeeks() ([]fto.SkippedWeek, error) {
@@ -87,7 +135,7 @@ func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.Comparab
 	var lfs []*fto.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
-SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
+SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
 FROM lifts
 JOIN exercises
 	ON lifts.exercise_id = exercises.id
@@ -98,15 +146,15 @@ LIMIT 250`
 
 		rows, err := tx.Query(q, ex)
 		if err != nil {
-			return fmt.Errorf("failed to query training_maxes: %w", err)
+			return fmt.Errorf("failed to query lifts: %w", err)
 		}
 		if lfs, err = lifts(rows); err != nil {
-			return fmt.Errorf("failed to scan training_maxes: %w", err)
+			return fmt.Errorf("failed to scan lifts: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to set lifts: %w", err)
+		return nil, fmt.Errorf("failed to load comparables: %w", err)
 	}
 
 	return fto.CalcComparables(lfs, weight), nil
@@ -116,7 +164,7 @@ func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 	var lfs []*fto.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
-SELECT exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
+SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
 FROM lifts
 JOIN exercises
 	ON lifts.exercise_id = exercises.id
@@ -278,6 +326,7 @@ func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
 			note sql.NullString
 		)
 		if err := rows.Scan(
+			&lf.ID,
 			&lf.Exercise, &lf.SetType, &sqlWeight{&lf.Weight},
 			&lf.SetNumber, &lf.Reps, &note,
 			&lf.DayNumber, &lf.WeekNumber, &lf.IterationNumber,

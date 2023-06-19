@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import type { RecordLiftRequest, Movement, Set, NextLiftResponse, SkipOptionalWeekRequest} from '$lib/api';
+	import type { RecordLiftRequest, Movement, Set, NextLiftResponse, SkipOptionalWeekRequest, RecordLiftResponse, Lift} from '$lib/api';
 	import apipath from '$lib/apipath'
+	import Modal from '$lib/Modal.svelte'
 
 	export let data: PageData;
 
@@ -9,11 +10,18 @@
 	let note = '';
 	let showNote = false;
 
+	// When we're actively doing some request
+	let updating = false;
+
 	// Note specifically when skipping a deload week
 	let skipNote = '';
 
 	// Show editing reps on non-failure sets.
-	let editReps = false;
+	let showEditReps = false;
+
+	let editingLift: Lift | undefined = undefined
+	let editReps = 0;
+	let editNote = '';
 
 	$: curMvmt = data.Workout[data.NextMovementIndex];
 	$: curSet = curMvmt.Sets[data.NextSetIndex];
@@ -27,6 +35,13 @@
 	};
 	const updateReps = (e: Event) => {
 		reps = Number.parseInt((e.target as HTMLInputElement).value);
+	};
+
+	const decEditReps = () => {
+		editReps -= 1;
+	};
+	const incEditReps = () => {
+		editReps += 1;
 	};
 
 	const liftInfoStr1 = (mvmt: Movement): string => {
@@ -57,16 +72,18 @@
 			ToFailure: curSet.ToFailure,
 		} as RecordLiftRequest;
 
+		updating = true
 		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
-			.then((resp) => resp.json() as Promise<NextLiftResponse>)
+			.then((resp) => resp.json() as Promise<RecordLiftResponse>)
 			.then((dat) => {
-				data = dat
+				data = dat.NextLift
 			})
 			.finally(() => {
 				skipNote = ''
 				note = ''
 				showNote = false
-				editReps = false
+				showEditReps = false
+				updating = false
 			});
 	};
 
@@ -80,6 +97,7 @@
 			Note: skipNote,
 		} as SkipOptionalWeekRequest;
 
+		updating = true
 		fetch(apipath('/api/skipOptionalWeek'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json() as Promise<NextLiftResponse>)
 			.then((dat) => {
@@ -89,12 +107,63 @@
 				skipNote = ''
 				note = ''
 				showNote = false
-				editReps = false
+				showEditReps = false
+				updating = false
 			});
 	};
+
+	const setEditingLift = async (liftID?: number) => {
+		if (!liftID) {
+			return
+		}
+		const params = { id: liftID.toString() }
+		const res = await fetch(apipath('/api/lift', params));
+		const lift: Lift = await res.json();
+		editReps = lift.Reps
+		editNote = lift.Note
+		editingLift = lift
+	}
+
+	const clearEditingLift = () => {
+		editingLift = undefined
+	}
+
+	const editExistingLift = () => {
+		if (!editingLift) {
+			return
+		}
+		const req = {
+			id: editingLift.ID,
+			note: editNote,
+			reps: editReps,
+		}
+		updating = true
+		fetch(apipath('/api/editLift'), {method: 'POST', body: JSON.stringify(req)}).then(clearEditingLift).finally(() => updating = false)
+	}
 </script>
 
 <div class="lifts-page">
+
+	<Modal active={!!editingLift} on:close={clearEditingLift}>
+		{#if editingLift}
+			<h1>Edit Lift ID #{editingLift.ID}</h1>
+		{:else}
+			<h1>Edit Lift</h1>
+		{/if}
+		<div class="lift-input-row">
+			<button class="weight-adj-button" on:click={decEditReps}>-</button>
+			<input
+				class="lift-input"
+				type="number"
+				name="Lift Input"
+				bind:value={editReps}
+			/>
+			<button class="weight-adj-button" on:click={incEditReps}>+</button>
+		</div>
+		<textarea class="note" bind:value={editNote} rows="3" />
+		<button class="edit-button" on:click={editExistingLift} on:keypress={editExistingLift}>Edit</button>
+	</Modal>
+
 	{#if data.OptionalWeek}
 			<h1 class="header">Skip optional<br>{data.WeekName}?</h1>
 			<button class="dont-skip-button" on:click={() => data.OptionalWeek = false}>Do the week</button>
@@ -113,6 +182,8 @@
 							class:current-lift={i === data.NextMovementIndex && j === data.NextSetIndex}
 							class:completed={i < data.NextMovementIndex ||
 								(i == data.NextMovementIndex && j < data.NextSetIndex)}
+							on:click={() => setEditingLift(set.AssociatedLiftID)}
+							on:keypress={() => setEditingLift(set.AssociatedLiftID)}
 						>
 							{setString(set)}
 						</li>
@@ -131,7 +202,7 @@
 			<strong>{liftInfoStr2(curSet)}</strong>
 		</div>
 
-		{#if curSet.ToFailure || editReps}
+		{#if curSet.ToFailure || showEditReps}
 			<div class="lift-input-row">
 				<button class="weight-adj-button" on:click={decReps}>-</button>
 				<input
@@ -155,17 +226,16 @@
 		{/if}
 
 		<div class="lift-bottom-row">
-			<button class="record-button" on:click={recordLift}>Record</button>
-			<button class="skip-button" on:click={recordSkip}>Skip</button>
+			<button class="record-button" on:click={recordLift} disabled={updating}>Record</button>
 			{#if showNote}
 				<textarea class="note" bind:value={note} rows="3" />
 			{:else}
 				<button class="add-note-button" on:click={() => showNote = true}>Add Note</button>
 			{/if}
-			<button class="back-button" on:click={() => alert('todo')}>Back</button>
-			{#if !editReps && !curSet.ToFailure}
-				<button class="edit-button" on:click={() => editReps = true}>Edit Reps</button>
+			{#if !showEditReps && !curSet.ToFailure}
+				<button class="edit-button" on:click={() => showEditReps = true}>Edit Reps</button>
 			{/if}
+			<button class="skip-button" on:click={recordSkip} disabled={updating}>Skip</button>
 		</div>
 	</div>
 	{/if}

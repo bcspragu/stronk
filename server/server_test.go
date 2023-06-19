@@ -89,7 +89,7 @@ func TestNextLift(t *testing.T) {
 		NextSetIndex:      0,
 	})
 
-	rec := func(ex fto.Exercise, st fto.SetType, weight string, set, reps, day, week, iteration int) recordReq {
+	rec := func(ex fto.Exercise, st fto.SetType, weight string, set, reps, day, week, iteration int, toFailure bool) recordReq {
 		return recordReq{
 			Exercise:  ex,
 			SetType:   st,
@@ -99,6 +99,7 @@ func TestNextLift(t *testing.T) {
 			Day:       day,
 			Week:      week,
 			Iteration: iteration,
+			ToFailure: toFailure,
 		}
 	}
 
@@ -126,7 +127,7 @@ func TestNextLift(t *testing.T) {
 	}{
 		// Warmup
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "50", 0, 5, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Warmup, "50", 0, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -139,7 +140,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "65", 1, 5, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Warmup, "65", 1, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -152,7 +153,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "77.5", 2, 3, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Warmup, "77.5", 2, 3, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -166,7 +167,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Main
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "82.5", 0, 5, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Main, "82.5", 0, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -179,7 +180,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "95", 1, 5, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Main, "95", 1, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -192,7 +193,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "107.5", 2, 7, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Main, "107.5", 2, 7, 0, 0, 0, true),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -206,7 +207,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Assistance
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 0, 10, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 0, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -219,7 +220,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 1, 10, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 1, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -232,7 +233,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 2, 10, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 2, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -245,7 +246,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 3, 10, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 3, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -259,7 +260,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Now onto squats
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "50", 4, 10, 0, 0, 0),
+			toRecord: rec(fto.OverheadPress, fto.Assistance, "50", 4, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -273,7 +274,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Warmup
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "92.5", 0, 5, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Warmup, "92.5", 0, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -286,7 +287,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "115", 1, 5, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Warmup, "115", 1, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -299,7 +300,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "137.5", 2, 3, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Warmup, "137.5", 2, 3, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -313,7 +314,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Main
 		{
-			toRecord: rec(fto.Squat, fto.Main, "150", 0, 5, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Main, "150", 0, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -326,7 +327,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Main, "172.5", 1, 5, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Main, "172.5", 1, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -339,7 +340,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Main, "195", 2, 7, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Main, "195", 2, 7, 1, 0, 0, true),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -353,7 +354,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Assistance
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 0, 10, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 0, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -366,7 +367,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 1, 10, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 1, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -379,7 +380,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 2, 10, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 2, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -392,7 +393,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "70", 3, 10, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Assistance, "70", 3, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -405,7 +406,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "70", 4, 10, 1, 0, 0),
+			toRecord: rec(fto.Squat, fto.Assistance, "70", 4, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         2,
 				WeekNumber:        0,
@@ -420,8 +421,10 @@ func TestNextLift(t *testing.T) {
 		// TODO: Continue this extremely tedious process of checking the next lift, and probably also correlate the recorded weight with the expected weight for the routine.
 	}
 
+	curMvmt, curSet, dayName := 0, 0, tests[0].wantNextLift.DayName
 	for _, test := range tests {
 		t.Run(testName(test.toRecord), func(t *testing.T) {
+
 			req, err := json.Marshal(test.toRecord)
 			if err != nil {
 				t.Fatalf("failed to marshal request: %v", err)
@@ -429,7 +432,32 @@ func TestNextLift(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/recordLift", bytes.NewReader(req))
 			w := httptest.NewRecorder()
 			srv.serveRecordLift(w, r)
-			checkAndParseNextLiftResponse(w.Result(), test.wantNextLift)
+
+			resp := w.Result()
+			if status := resp.StatusCode; status != http.StatusOK {
+				t.Fatalf("unexpected response code from server %d, wanted OK", status)
+			}
+
+			var got recordLiftResp
+			dat, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+			if err := json.Unmarshal(dat, &got); err != nil {
+				t.Fatalf("failed to decode next lift response: %v", err)
+			}
+			// Before we check the lift, make our workout correct. When we finish a day's
+			// workout, we get the next one, and we'd be setting the ID on a totally
+			// unrelated lift, so only set if we're still on the same day.
+			if dayName == test.wantNextLift.DayName {
+				test.wantNextLift.Workout[curMvmt].Sets[curSet].AssociatedLiftID = got.LiftID
+			}
+
+			checkLift(*got.NextLift, test.wantNextLift)
+
+			curMvmt = test.wantNextLift.NextMovementIndex
+			curSet = test.wantNextLift.NextSetIndex
+			dayName = test.wantNextLift.DayName
 		})
 	}
 }

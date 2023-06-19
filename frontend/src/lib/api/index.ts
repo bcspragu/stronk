@@ -12,6 +12,7 @@ export interface Set {
 	TrainingMaxPercentage: number;
 	WeightTarget: Weight;
 	FailureComparables?: ComparableLifts;
+	AssociatedLiftID?: number;
 }
 
 export interface Movement {
@@ -21,6 +22,7 @@ export interface Movement {
 }
 
 export interface Lift {
+	ID: number;
 	Exercise:  Exercise;
 	SetType: SetType;
 	Weight: Weight;
@@ -38,6 +40,11 @@ export interface ComparableLifts {
 	ClosestWeight?: Lift
 	PersonalRecord?: Lift
 	PREquivalentReps: number
+}
+
+export interface RecordLiftResponse {
+	LiftID: number
+	NextLift: NextLiftResponse
 }
 
 export interface NextLiftResponse {
