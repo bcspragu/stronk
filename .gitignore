@@ -2,4 +2,4 @@ routine.json
 hashkey.dat
 blockkey.dat
 fivethreeone.db
-fivethreeone.db.local
+fivethreeone.db.*
