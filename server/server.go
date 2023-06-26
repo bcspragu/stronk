@@ -398,9 +398,6 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		iter++
 	}
 
-	// Update our day routine, which may very well have changed.
-	dayRoutine = routine.Weeks[week].Days[day]
-
 	// If "the next thing" is a week we skipped, go straight to the next week or iter
 	if swm[weekIter{week: week, iteration: iter}] {
 		if week < len(routine.Weeks)-1 {
@@ -416,6 +413,9 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 			iter++
 		}
 	}
+
+	// Update our day routine, which may very well have changed.
+	dayRoutine = routine.Weeks[week].Days[day]
 
 	// Now, load the smallest denom and training maxes, to set the target weights.
 	tms, err := s.db.TrainingMaxes()
