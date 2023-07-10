@@ -100,10 +100,30 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if sd != nil && sd.Unit != fto.DeciPounds {
+		http.Error(w, fmt.Sprintf("unexpected unit %q", sd.Unit), http.StatusInternalServerError)
+		return
+	}
+
+	var sdStr string
+	if sd != nil {
+		switch sd.Value {
+		case 25:
+			sdStr = "1.25"
+		case 50:
+			sdStr = "2.5"
+		case 100:
+			sdStr = "5"
+		default:
+			http.Error(w, fmt.Sprintf("unexpected smallest denom %d", sd.Value), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	jsonResp(w, struct {
 		TrainingMaxes []*fto.TrainingMax
-		SmallestDenom *fto.Weight
-	}{tms, sd})
+		SmallestDenom string
+	}{tms, sdStr})
 }
 
 func (s *Server) serveLoadLift(w http.ResponseWriter, r *http.Request) {

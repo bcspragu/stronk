@@ -30,7 +30,7 @@
 	// We don't allow lower than that because it doesn't play nice with our silly
 	// decipound system, and at that point we're getting into rounding noise anyway,
 	// e.g. the barbell collars would probably throw off your .625 increment.
-	let smallestDenom = data.SmallestDenom ? data.SmallestDenom.Value / 10 : undefined;
+	let smallestDenom = data.SmallestDenom ? data.SmallestDenom : undefined;
 
 	$: canSubmit =
 		press !== undefined &&
@@ -49,14 +49,14 @@
 			Squat: squat?.toString(),
 			BenchPress: bench?.toString(),
 			Deadlift: deadlift?.toString(),
-			SmallestDenom: smallestDenom?.toString()
+			SmallestDenom: smallestDenom || ''
 		} as SetTrainingMaxesRequest;
 
 		fetch(apipath('/api/setTrainingMaxes'), {
 			method: 'POST',
 			body: JSON.stringify(req)
 		}).then(() => {
-			goto('/lifts');
+			goto('/');
 		});
 	};
 </script>
@@ -74,9 +74,9 @@
 <label for="smallest-plate-input">Smallest Plate</label>
 <select bind:value={smallestDenom} name="Smallest Plate">
 	<option value={undefined} selected>Please choose</option>
-	<option value={2.5}>1.25</option>
-	<option value={5}>2.5</option>
-	<option value={10}>5</option>
+	<option value={'1.25'}>1.25</option>
+	<option value={'2.5'}>2.5</option>
+	<option value={'5'}>5</option>
 </select>
 <br />
 <button on:click={setTrainingMaxes} disabled={!canSubmit}>Enter</button>
