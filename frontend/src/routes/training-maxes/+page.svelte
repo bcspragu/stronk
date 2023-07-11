@@ -66,10 +66,26 @@
 <p>Your one rep max can be calculated as: Weight + Weight * Num reps * 0.0333333</p>
 <p>Your training max should be 90% of your one rep max.</p>
 
-<input type="number" bind:value={press} placeholder="Press Max" name="Press" />
-<input type="number" bind:value={squat} placeholder="Squat Max" name="Squat" />
-<input type="number" bind:value={bench} placeholder="Bench Max" name="Bench" />
-<input type="number" bind:value={deadlift} placeholder="Deadlift Max" name="Deadlift" />
+<div>
+	<label for="Press">Press</label>
+	<input type="number" bind:value={press} placeholder="Press Max" name="Press" />
+</div>
+
+<div>
+	<label for="Squat">Squat</label>
+	<input type="number" bind:value={squat} placeholder="Squat Max" name="Squat" />
+</div>
+
+<div>
+	<label for="Bench">Bench</label>
+	<input type="number" bind:value={bench} placeholder="Bench Max" name="Bench" />
+</div>
+
+<div>
+	<label for="Deadlift">Deadlift</label>
+	<input type="number" bind:value={deadlift} placeholder="Deadlift Max" name="Deadlift" />
+</div>
+
 <br />
 <label for="smallest-plate-input">Smallest Plate</label>
 <select bind:value={smallestDenom} name="Smallest Plate">

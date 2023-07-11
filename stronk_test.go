@@ -1,4 +1,4 @@
-package fto
+package stronk
 
 import "testing"
 

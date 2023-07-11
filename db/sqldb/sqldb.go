@@ -11,7 +11,7 @@ import (
 	"sync"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/lexacali/fivethreeone/fto"
+	"github.com/bcspragu/stronk"
 	"github.com/mattn/go-sqlite3"
 
 	migratesqlite3 "github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -21,7 +21,7 @@ import (
 type DB struct {
 	mu          sync.Mutex
 	sql         *sql.DB
-	mainLiftIDs map[fto.Exercise]int
+	mainLiftIDs map[stronk.Exercise]int
 }
 
 func (db *DB) Close() error {
@@ -32,7 +32,7 @@ type scanner interface {
 	Scan(dest ...interface{}) error
 }
 
-func (db *DB) EditLift(id fto.LiftID, note string, reps int) error {
+func (db *DB) EditLift(id stronk.LiftID, note string, reps int) error {
 	return db.transact(func(tx *sql.Tx) error {
 		q := `
 UPDATE lifts
@@ -44,8 +44,8 @@ WHERE id = ?
 	})
 }
 
-func (db *DB) Lift(id fto.LiftID) (*fto.Lift, error) {
-	var lift *fto.Lift
+func (db *DB) Lift(id stronk.LiftID) (*stronk.Lift, error) {
+	var lift *stronk.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
@@ -74,8 +74,8 @@ WHERE lifts.id = ?`
 	return lift, nil
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error) {
-	var id fto.LiftID
+func (db *DB) RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error) {
+	var id stronk.LiftID
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO lifts
 (exercise_id, set_type, set_number, reps, weight, day_number, week_number, iteration_number, lift_note, to_failure)
@@ -92,8 +92,8 @@ RETURNING lifts.id`
 	return id, nil
 }
 
-func (db *DB) SkippedWeeks() ([]fto.SkippedWeek, error) {
-	var weeks []fto.SkippedWeek
+func (db *DB) SkippedWeeks() ([]stronk.SkippedWeek, error) {
+	var weeks []stronk.SkippedWeek
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT week_number, iteration_number, note
@@ -128,11 +128,11 @@ VALUES (?, ?, ?)`
 	})
 }
 
-func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error) {
+func (db *DB) ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk.ComparableLifts, error) {
 	// We want to find two comparable lifts:
 	//  1. The closest in weight, breaking ties by highest ORM equivalent ("Most Similar")
 	//  2. The highest ORM equivalent reps, period. ("PR")
-	var lfs []*fto.Lift
+	var lfs []*stronk.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
@@ -157,11 +157,11 @@ LIMIT 250`
 		return nil, fmt.Errorf("failed to load comparables: %w", err)
 	}
 
-	return fto.CalcComparables(lfs, weight), nil
+	return stronk.CalcComparables(lfs, weight), nil
 }
 
-func (db *DB) RecentLifts() ([]*fto.Lift, error) {
-	var lfs []*fto.Lift
+func (db *DB) RecentLifts() ([]*stronk.Lift, error) {
+	var lfs []*stronk.Lift
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
@@ -207,16 +207,16 @@ func (db *DB) transact(dbFn func(tx *sql.Tx) error) error {
 	return nil
 }
 
-func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {
+func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift stronk.Weight) error {
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO training_maxes
 (exercise_id, training_max_weight) VALUES
 (?, ?), (?, ?), (?, ?), (?, ?)`
 		args := []interface{}{
-			db.mainLiftIDs[fto.OverheadPress], &sqlWeight{&press},
-			db.mainLiftIDs[fto.Squat], &sqlWeight{&squat},
-			db.mainLiftIDs[fto.BenchPress], &sqlWeight{&bench},
-			db.mainLiftIDs[fto.Deadlift], &sqlWeight{&deadlift},
+			db.mainLiftIDs[stronk.OverheadPress], &sqlWeight{&press},
+			db.mainLiftIDs[stronk.Squat], &sqlWeight{&squat},
+			db.mainLiftIDs[stronk.BenchPress], &sqlWeight{&bench},
+			db.mainLiftIDs[stronk.Deadlift], &sqlWeight{&deadlift},
 		}
 		if _, err := tx.Exec(q, args...); err != nil {
 			return fmt.Errorf("failed to insert to training_maxes: %w", err)
@@ -229,8 +229,8 @@ func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {
 	return nil
 }
 
-func (db *DB) TrainingMaxes() ([]*fto.TrainingMax, error) {
-	var tms []*fto.TrainingMax
+func (db *DB) TrainingMaxes() ([]*stronk.TrainingMax, error) {
+	var tms []*stronk.TrainingMax
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT b.exname, a.training_max_weight
@@ -261,12 +261,12 @@ ON a.exercise_id = b.exid
 	return tms, nil
 }
 
-func trainingMaxes(rows *sql.Rows) ([]*fto.TrainingMax, error) {
+func trainingMaxes(rows *sql.Rows) ([]*stronk.TrainingMax, error) {
 	defer rows.Close()
 
-	var tms []*fto.TrainingMax
+	var tms []*stronk.TrainingMax
 	for rows.Next() {
-		var tm fto.TrainingMax
+		var tm stronk.TrainingMax
 		if err := rows.Scan(&tm.Exercise, &sqlWeight{&tm.Max}); err != nil {
 			return nil, fmt.Errorf("failed to scan training max: %w", err)
 		}
@@ -279,7 +279,7 @@ func trainingMaxes(rows *sql.Rows) ([]*fto.TrainingMax, error) {
 	return tms, nil
 }
 
-func (db *DB) SetSmallestDenom(small fto.Weight) error {
+func (db *DB) SetSmallestDenom(small stronk.Weight) error {
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO smallest_denom (smallest_denom) VALUES (?)`
 		if _, err := tx.Exec(q, &sqlWeight{&small}); err != nil {
@@ -293,8 +293,8 @@ func (db *DB) SetSmallestDenom(small fto.Weight) error {
 	return nil
 }
 
-func (db *DB) SmallestDenom() (fto.Weight, error) {
-	var small fto.Weight
+func (db *DB) SmallestDenom() (stronk.Weight, error) {
+	var small stronk.Weight
 	err := db.transact(func(tx *sql.Tx) error {
 		q := `
 SELECT a.smallest_denom
@@ -303,7 +303,7 @@ ORDER BY a.created_at DESC
 LIMIT 1`
 		err := tx.QueryRow(q).Scan(&sqlWeight{&small})
 		if errors.Is(err, sql.ErrNoRows) {
-			return fto.ErrNoSmallestDenom
+			return stronk.ErrNoSmallestDenom
 		}
 		if err != nil {
 			return fmt.Errorf("failed to scan smallest denominator: %w", err)
@@ -311,18 +311,18 @@ LIMIT 1`
 		return nil
 	})
 	if err != nil {
-		return fto.Weight{}, err
+		return stronk.Weight{}, err
 	}
 	return small, nil
 }
 
-func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
+func lifts(rows *sql.Rows) ([]*stronk.Lift, error) {
 	defer rows.Close()
 
-	var lfs []*fto.Lift
+	var lfs []*stronk.Lift
 	for rows.Next() {
 		var (
-			lf   fto.Lift
+			lf   stronk.Lift
 			note sql.NullString
 		)
 		if err := rows.Scan(
@@ -345,12 +345,12 @@ func lifts(rows *sql.Rows) ([]*fto.Lift, error) {
 	return lfs, nil
 }
 
-func skippedWeeks(rows *sql.Rows) ([]fto.SkippedWeek, error) {
+func skippedWeeks(rows *sql.Rows) ([]stronk.SkippedWeek, error) {
 	defer rows.Close()
 
-	var wks []fto.SkippedWeek
+	var wks []stronk.SkippedWeek
 	for rows.Next() {
-		var wk fto.SkippedWeek
+		var wk stronk.SkippedWeek
 		if err := rows.Scan(&wk.Week, &wk.Iteration, &wk.Note); err != nil {
 			return nil, fmt.Errorf("failed to scan skipped week: %w", err)
 		}
@@ -432,7 +432,7 @@ func New(dbPath, migrationsPath string) (*DB, error) {
 	return sdb, nil
 }
 
-func (db *DB) CreateExercise(ex fto.Exercise) error {
+func (db *DB) CreateExercise(ex stronk.Exercise) error {
 	return db.transact(func(tx *sql.Tx) error {
 		q := `INSERT INTO exercises (name) VALUES (?)`
 		_, err := tx.Exec(q, ex)
@@ -451,10 +451,10 @@ func (db *DB) CreateExercise(ex fto.Exercise) error {
 
 type exercise struct {
 	ID       int
-	Exercise fto.Exercise
+	Exercise stronk.Exercise
 }
 
-func (db *DB) exercises(exs []fto.Exercise) ([]exercise, error) {
+func (db *DB) exercises(exs []stronk.Exercise) ([]exercise, error) {
 	var out []exercise
 	err := db.transact(func(tx *sql.Tx) error {
 		q := fmt.Sprintf(`
@@ -494,7 +494,7 @@ WHERE name IN %s`, repeatedArgs(len(exs)))
 
 func (db *DB) initMainLifts() error {
 	// First, create all the main lifts.
-	exs := fto.MainExercises()
+	exs := stronk.MainExercises()
 	for _, ex := range exs {
 		if err := db.CreateExercise(ex); err != nil {
 			return fmt.Errorf("failed to create exercise %q: %w", ex, err)
@@ -502,7 +502,7 @@ func (db *DB) initMainLifts() error {
 	}
 
 	// Now, load all of their IDs.
-	mainLiftIDs := make(map[fto.Exercise]int)
+	mainLiftIDs := make(map[stronk.Exercise]int)
 	exsWithIDs, err := db.exercises(exs)
 	if err != nil {
 		return err

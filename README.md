@@ -30,7 +30,7 @@ Then, to run the infrastructure.
 
 ```bash
 # Run the backend
-go run .
+go run ./cmd/server
 
 # In another terminal
 cd frontend
@@ -45,32 +45,32 @@ Frontend is available at `localhost:5173`, backend is `localhost:8080`.
 
 Note: the app has no authentication, make sure to introduce basic auth or deploy the app behind something like [Tailscale](https://tailscale.com/)
 
-The main way to deploy this is with two Docker containers `fivethreeone` and `fivethreeone-fe`, which run the backend and frontend respectively. I run this in a local K8s deployment, using a config like:
+The main way to deploy this is with two Docker containers `stronk` and `stronk-fe`, which run the backend and frontend respectively. I run this in a local K8s deployment, using a config like:
 
 <details>
 
-<summary>fivethreeone.yaml</summary>
+<summary>stronk.yaml</summary>
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fivethreeone-deployment
+  name: stronk-deployment
   labels:
-    app: fivethreeone
+    app: stronk
 spec:
   selector:
     matchLabels:
-      app: fivethreeone
+      app: stronk
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: fivethreeone
+        app: stronk
     spec:
         containers:
-        - image: <registry>/fivethreeone-fe
+        - image: <registry>/stronk-fe
           name: frontend
           env:
           - name: PUBLIC_API_BASE_URL
@@ -78,13 +78,13 @@ spec:
           ports:
             - containerPort: 3000
               name: web
-        - image: <registry>/fivethreeone
+        - image: <registry>/stronk
           name: backend
           env:
           - name: ROUTINE_FILE
             value: /config/routine.json
           - name: DB_FILE
-            value: /data/fivethreeone.db
+            value: /data/stronk.db
           - name: MIGRATION_DIR
             value: /migrations
           ports:
@@ -93,7 +93,7 @@ spec:
           volumeMounts:
           - name: site-data
             mountPath: "/data"
-            subPath: fivethreeone
+            subPath: stronk
           - name: config
             mountPath: "/config"
             readOnly: true
@@ -102,16 +102,16 @@ spec:
           # TODO: Some kind of mount for the SQLite database
         - name: config
           configMap:
-            name: fivethreeone-config
+            name: stronk-config
           # This contains the routine.json file for your specific program.
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: fivethreeone
+  name: stronk
 spec:
   selector:
-    app: fivethreeone
+    app: stronk
   ports:
     - name: web
       protocol: TCP
@@ -136,26 +136,13 @@ https://stronk.<domain> {
 	encode gzip
 
 	handle /api/* {
-		reverse_proxy fivethreeone.<namespace>.svc.cluster.local:8080
+		reverse_proxy stronk.<namespace>.svc.cluster.local:8080
 	}
 
 	handle {
-		reverse_proxy fivethreeone.<namespace>.svc.cluster.local:3000
+		reverse_proxy stronk.<namespace>.svc.cluster.local:3000
 	}
 }
 ```
 
 </details>
-
-
-## TODO
-
-- [x] Make a "back"/edit button
-  - One can now edit by tapping a previous lift
-- [x] Make record button bigger, and farther away from skip
-- [x] Add a feature to see similar "to failure" sets
-- [x] Highlight personal records
-  - Not done directly, but 'failure comparables' make it clear when you've made a new PR.
-- [x] Make weight amount more prominent
-- [x] Add support for offering to skip deload week
-  - Will require adding new `routine.json` metadata

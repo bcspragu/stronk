@@ -34,7 +34,7 @@ npm run build:cloud
 This is kind of a misnomer, as it uses the default Node adapter and can then be packaged up into a Docker image with:
 
 ```bash
-docker build -t <registry host>/fivethreeone-fe .
+docker build -t <registry host>/stronk-fe .
 ```
 
 Personally, I deploy it on a homelab k8s cluster, but this same image should be fine to deploy on any cloud provider that can run Docker image (e.g. AWS Lambda or Fargate, GCP Cloud Run or Functions or App Engine Flex, Azure App Services, etc). See [the main README](/README.md) for more deployment details.

@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bcspragu/stronk"
+	"github.com/bcspragu/stronk/testing/testdb"
 	"github.com/google/go-cmp/cmp"
-	"github.com/lexacali/fivethreeone/fto"
-	"github.com/lexacali/fivethreeone/testing/testdb"
 )
 
 func TestNextLift(t *testing.T) {
@@ -84,12 +84,12 @@ func TestNextLift(t *testing.T) {
 		IterationNumber:   0,
 		DayName:           "Press Day",
 		WeekName:          "Week 1",
-		Workout:           env.workout(t, fto.OverheadPress, 0),
+		Workout:           env.workout(t, stronk.OverheadPress, 0),
 		NextMovementIndex: 0,
 		NextSetIndex:      0,
 	})
 
-	rec := func(ex fto.Exercise, st fto.SetType, weight string, set, reps, day, week, iteration int, toFailure bool) recordReq {
+	rec := func(ex stronk.Exercise, st stronk.SetType, weight string, set, reps, day, week, iteration int, toFailure bool) recordReq {
 		return recordReq{
 			Exercise:  ex,
 			SetType:   st,
@@ -104,20 +104,20 @@ func TestNextLift(t *testing.T) {
 	}
 
 	var (
-		pressWeekOneWorkout = env.workout(t, fto.OverheadPress, 0)
-		squatWeekOneWorkout = env.workout(t, fto.Squat, 0)
-		benchWeekOneWorkout = env.workout(t, fto.BenchPress, 0)
-		// deadliftWeekOneWorkout = env.workout(t, fto.Deadlift, 0)
+		pressWeekOneWorkout = env.workout(t, stronk.OverheadPress, 0)
+		squatWeekOneWorkout = env.workout(t, stronk.Squat, 0)
+		benchWeekOneWorkout = env.workout(t, stronk.BenchPress, 0)
+		// deadliftWeekOneWorkout = env.workout(t, stronk.Deadlift, 0)
 
-		// pressWeekTwoWorkout    = env.workout(t, fto.OverheadPress, 1)
-		// squatWeekTwoWorkout    = env.workout(t, fto.Squat, 1)
-		// benchWeekTwoWorkout    = env.workout(t, fto.BenchPress, 1)
-		// deadliftWeekTwoWorkout = env.workout(t, fto.Deadlift, 1)
+		// pressWeekTwoWorkout    = env.workout(t, stronk.OverheadPress, 1)
+		// squatWeekTwoWorkout    = env.workout(t, stronk.Squat, 1)
+		// benchWeekTwoWorkout    = env.workout(t, stronk.BenchPress, 1)
+		// deadliftWeekTwoWorkout = env.workout(t, stronk.Deadlift, 1)
 
-		// pressWeekThreeWorkout    = env.workout(t, fto.OverheadPress, 1)
-		// squatWeekThreeWorkout    = env.workout(t, fto.Squat, 1)
-		// benchWeekThreeWorkout    = env.workout(t, fto.BenchPress, 1)
-		// deadliftWeekThreeWorkout = env.workout(t, fto.Deadlift, 1)
+		// pressWeekThreeWorkout    = env.workout(t, stronk.OverheadPress, 1)
+		// squatWeekThreeWorkout    = env.workout(t, stronk.Squat, 1)
+		// benchWeekThreeWorkout    = env.workout(t, stronk.BenchPress, 1)
+		// deadliftWeekThreeWorkout = env.workout(t, stronk.Deadlift, 1)
 	)
 
 	// Now, record lifts and make sure the next one looks right.
@@ -127,7 +127,7 @@ func TestNextLift(t *testing.T) {
 	}{
 		// Warmup
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "50", 0, 5, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Warmup, "50", 0, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -140,7 +140,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "65", 1, 5, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Warmup, "65", 1, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -153,7 +153,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Warmup, "77.5", 2, 3, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Warmup, "77.5", 2, 3, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -167,7 +167,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Main
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "82.5", 0, 5, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Main, "82.5", 0, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -180,7 +180,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "95", 1, 5, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Main, "95", 1, 5, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -193,7 +193,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Main, "107.5", 2, 7, 0, 0, 0, true),
+			toRecord: rec(stronk.OverheadPress, stronk.Main, "107.5", 2, 7, 0, 0, 0, true),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -207,7 +207,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Assistance
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 0, 10, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Assistance, "77.5", 0, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -220,7 +220,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "77.5", 1, 10, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Assistance, "77.5", 1, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -233,7 +233,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 2, 10, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Assistance, "65", 2, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -246,7 +246,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "65", 3, 10, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Assistance, "65", 3, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         0,
 				WeekNumber:        0,
@@ -260,7 +260,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Now onto squats
 		{
-			toRecord: rec(fto.OverheadPress, fto.Assistance, "50", 4, 10, 0, 0, 0, false),
+			toRecord: rec(stronk.OverheadPress, stronk.Assistance, "50", 4, 10, 0, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -274,7 +274,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Warmup
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "92.5", 0, 5, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Warmup, "92.5", 0, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -287,7 +287,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "115", 1, 5, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Warmup, "115", 1, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -300,7 +300,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Warmup, "137.5", 2, 3, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Warmup, "137.5", 2, 3, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -314,7 +314,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Main
 		{
-			toRecord: rec(fto.Squat, fto.Main, "150", 0, 5, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Main, "150", 0, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -327,7 +327,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Main, "172.5", 1, 5, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Main, "172.5", 1, 5, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -340,7 +340,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Main, "195", 2, 7, 1, 0, 0, true),
+			toRecord: rec(stronk.Squat, stronk.Main, "195", 2, 7, 1, 0, 0, true),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -354,7 +354,7 @@ func TestNextLift(t *testing.T) {
 		},
 		// Assistance
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 0, 10, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Assistance, "92.5", 0, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -367,7 +367,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 1, 10, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Assistance, "92.5", 1, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -380,7 +380,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "92.5", 2, 10, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Assistance, "92.5", 2, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -393,7 +393,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "70", 3, 10, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Assistance, "70", 3, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         1,
 				WeekNumber:        0,
@@ -406,7 +406,7 @@ func TestNextLift(t *testing.T) {
 			},
 		},
 		{
-			toRecord: rec(fto.Squat, fto.Assistance, "70", 4, 10, 1, 0, 0, false),
+			toRecord: rec(stronk.Squat, stronk.Assistance, "70", 4, 10, 1, 0, 0, false),
 			wantNextLift: nextLiftResp{
 				DayNumber:         2,
 				WeekNumber:        0,
@@ -466,7 +466,7 @@ func testName(in recordReq) string {
 	return fmt.Sprintf("[%s] %s %d %d %d", in.SetType, in.Exercise, in.Set, in.Day, in.Week)
 }
 
-func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Movement {
+func (e *testEnv) workout(t *testing.T, ex stronk.Exercise, weekNum int) []*stronk.Movement {
 	var r1, r2, r3 int
 	var tm1, tm2, tm3 int
 	switch weekNum {
@@ -483,7 +483,7 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 		t.Fatalf("unsupported week index %d", weekNum)
 	}
 	var atm1, atm2, atm3, atm4, atm5 int
-	if ex == fto.Squat {
+	if ex == stronk.Squat {
 		atm1, atm2, atm3, atm4, atm5 = 40, 40, 40, 30, 30
 	} else {
 		atm1, atm2, atm3, atm4, atm5 = 60, 60, 50, 50, 40
@@ -492,12 +492,12 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 	tm := e.trainingMax(t, ex)
 	sd := e.smallestDenom(t)
 
-	set := func(repTarget, trainingMax int, failure bool) *fto.Set {
-		var comparables *fto.ComparableLifts
+	set := func(repTarget, trainingMax int, failure bool) *stronk.Set {
+		var comparables *stronk.ComparableLifts
 		if failure {
-			comparables = &fto.ComparableLifts{}
+			comparables = &stronk.ComparableLifts{}
 		}
-		return &fto.Set{
+		return &stronk.Set{
 			RepTarget:             repTarget,
 			TrainingMaxPercentage: trainingMax,
 			ToFailure:             failure,
@@ -506,11 +506,11 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 		}
 	}
 
-	return []*fto.Movement{
+	return []*stronk.Movement{
 		{
 			Exercise: ex,
-			SetType:  fto.Warmup,
-			Sets: []*fto.Set{
+			SetType:  stronk.Warmup,
+			Sets: []*stronk.Set{
 				set(5, 40, false),
 				set(5, 50, false),
 				set(3, 60, false),
@@ -518,8 +518,8 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 		},
 		{
 			Exercise: ex,
-			SetType:  fto.Main,
-			Sets: []*fto.Set{
+			SetType:  stronk.Main,
+			Sets: []*stronk.Set{
 				set(r1, tm1, false),
 				set(r2, tm2, false),
 				set(r3, tm3, true),
@@ -527,8 +527,8 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 		},
 		{
 			Exercise: ex,
-			SetType:  fto.Assistance,
-			Sets: []*fto.Set{
+			SetType:  stronk.Assistance,
+			Sets: []*stronk.Set{
 				set(10, atm1, false),
 				set(10, atm2, false),
 				set(10, atm3, false),
@@ -540,16 +540,16 @@ func (e *testEnv) workout(t *testing.T, ex fto.Exercise, weekNum int) []*fto.Mov
 }
 
 func TestParsePounds(t *testing.T) {
-	wt := func(in int) fto.Weight {
-		return fto.Weight{
+	wt := func(in int) stronk.Weight {
+		return stronk.Weight{
 			Value: in,
-			Unit:  fto.DeciPounds,
+			Unit:  stronk.DeciPounds,
 		}
 	}
 
 	tests := []struct {
 		in      string
-		want    fto.Weight
+		want    stronk.Weight
 		wantErr bool
 	}{
 		// Good cases.
@@ -632,25 +632,25 @@ func TestParsePounds(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("unexpected fto.Weight returned (-want +got)\n%s", diff)
+				t.Errorf("unexpected stronk.Weight returned (-want +got)\n%s", diff)
 			}
 		})
 	}
 }
 
 func TestRoundWeight(t *testing.T) {
-	wt := func(in int) fto.Weight {
-		return fto.Weight{
+	wt := func(in int) stronk.Weight {
+		return stronk.Weight{
 			Value: in,
-			Unit:  fto.DeciPounds,
+			Unit:  stronk.DeciPounds,
 		}
 	}
 
 	tests := []struct {
-		trainingMax   fto.Weight
+		trainingMax   stronk.Weight
 		percent       int
-		smallestDenom fto.Weight
-		want          fto.Weight
+		smallestDenom stronk.Weight
+		want          stronk.Weight
 	}{
 		{
 			trainingMax:   wt(1050),
@@ -743,7 +743,7 @@ type testEnv struct {
 	db *testdb.DB
 }
 
-func (e *testEnv) trainingMax(t *testing.T, ex fto.Exercise) fto.Weight {
+func (e *testEnv) trainingMax(t *testing.T, ex stronk.Exercise) stronk.Weight {
 	tms, err := e.db.TrainingMaxes()
 	if err != nil {
 		t.Fatalf("failed to load training maxes: %v", err)
@@ -754,10 +754,10 @@ func (e *testEnv) trainingMax(t *testing.T, ex fto.Exercise) fto.Weight {
 		}
 	}
 	t.Fatalf("no training max was found for exercise %q", ex)
-	return fto.Weight{}
+	return stronk.Weight{}
 }
 
-func (e *testEnv) smallestDenom(t *testing.T) fto.Weight {
+func (e *testEnv) smallestDenom(t *testing.T) stronk.Weight {
 	w, err := e.db.SmallestDenom()
 	if err != nil {
 		t.Fatalf("failed to load smallest denom: %v", err)
@@ -771,16 +771,16 @@ func setup(t *testing.T) (*Server, *testEnv) {
 	return New(loadRoutine(t), env.db), env
 }
 
-func loadRoutine(t *testing.T) *fto.Routine {
+func loadRoutine(t *testing.T) *stronk.Routine {
 	root := rootDir(t)
 
-	f, err := os.Open(filepath.Join(root, "..", "routine.json"))
+	f, err := os.Open(filepath.Join(root, "..", "routine.example.json"))
 	if err != nil {
 		t.Fatalf("failed to open routine file: %v", err)
 	}
 	defer f.Close()
 
-	var routine *fto.Routine
+	var routine *stronk.Routine
 	if err := json.NewDecoder(f).Decode(&routine); err != nil {
 		t.Fatalf("failed to parse routine file as JSON: %v", err)
 	}

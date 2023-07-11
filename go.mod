@@ -1,4 +1,4 @@
-module github.com/lexacali/fivethreeone
+module github.com/bcspragu/stronk
 
 go 1.16
 

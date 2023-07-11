@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/lexacali/fivethreeone/fto"
+	"github.com/bcspragu/stronk"
 )
 
 func New() *DB {
@@ -13,13 +13,13 @@ func New() *DB {
 }
 
 type DB struct {
-	lifts          []*fto.Lift
-	trainingMaxes  []*fto.TrainingMax
-	smallestDenoms []fto.Weight
-	skippedWeeks   []fto.SkippedWeek
+	lifts          []*stronk.Lift
+	trainingMaxes  []*stronk.TrainingMax
+	smallestDenoms []stronk.Weight
+	skippedWeeks   []stronk.SkippedWeek
 }
 
-func (db *DB) Lift(id fto.LiftID) (*fto.Lift, error) {
+func (db *DB) Lift(id stronk.LiftID) (*stronk.Lift, error) {
 	for _, l := range db.lifts {
 		if l.ID == id {
 			return l, nil
@@ -28,7 +28,7 @@ func (db *DB) Lift(id fto.LiftID) (*fto.Lift, error) {
 	return nil, fmt.Errorf("lift %d not found", id)
 }
 
-func (db *DB) EditLift(id fto.LiftID, note string, reps int) error {
+func (db *DB) EditLift(id stronk.LiftID, note string, reps int) error {
 	for _, l := range db.lifts {
 		if l.ID == id {
 			l.Note = note
@@ -39,8 +39,8 @@ func (db *DB) EditLift(id fto.LiftID, note string, reps int) error {
 	return fmt.Errorf("lift %d not found", id)
 }
 
-func (db *DB) RecentLifts() ([]*fto.Lift, error) {
-	lifts := make([]*fto.Lift, len(db.lifts))
+func (db *DB) RecentLifts() ([]*stronk.Lift, error) {
+	lifts := make([]*stronk.Lift, len(db.lifts))
 	copy(lifts, db.lifts)
 
 	sort.Slice(lifts, func(i, j int) bool {
@@ -61,9 +61,9 @@ func (db *DB) RecentLifts() ([]*fto.Lift, error) {
 	return lifts, nil
 }
 
-func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error) {
-	id := fto.LiftID(len(db.lifts) + 1)
-	db.lifts = append(db.lifts, &fto.Lift{
+func (db *DB) RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error) {
+	id := stronk.LiftID(len(db.lifts) + 1)
+	db.lifts = append(db.lifts, &stronk.Lift{
 		ID:              id,
 		Exercise:        ex,
 		SetType:         st,
@@ -79,20 +79,20 @@ func (db *DB) RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set
 	return id, nil
 }
 
-func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error {
+func (db *DB) SetTrainingMaxes(press, squat, bench, deadlift stronk.Weight) error {
 	db.trainingMaxes = append(db.trainingMaxes,
-		&fto.TrainingMax{Exercise: fto.OverheadPress, Max: press},
-		&fto.TrainingMax{Exercise: fto.Squat, Max: squat},
-		&fto.TrainingMax{Exercise: fto.BenchPress, Max: bench},
-		&fto.TrainingMax{Exercise: fto.Deadlift, Max: deadlift},
+		&stronk.TrainingMax{Exercise: stronk.OverheadPress, Max: press},
+		&stronk.TrainingMax{Exercise: stronk.Squat, Max: squat},
+		&stronk.TrainingMax{Exercise: stronk.BenchPress, Max: bench},
+		&stronk.TrainingMax{Exercise: stronk.Deadlift, Max: deadlift},
 	)
 	return nil
 }
 
-func (db *DB) TrainingMaxes() ([]*fto.TrainingMax, error) {
+func (db *DB) TrainingMaxes() ([]*stronk.TrainingMax, error) {
 	var (
-		out   []*fto.TrainingMax
-		found = make(map[fto.Exercise]bool)
+		out   []*stronk.TrainingMax
+		found = make(map[stronk.Exercise]bool)
 	)
 	tms := db.trainingMaxes
 	for i := len(tms) - 1; i >= 0; i-- {
@@ -107,29 +107,29 @@ func (db *DB) TrainingMaxes() ([]*fto.TrainingMax, error) {
 	return out, nil
 }
 
-func (db *DB) SetSmallestDenom(small fto.Weight) error {
+func (db *DB) SetSmallestDenom(small stronk.Weight) error {
 	db.smallestDenoms = append(db.smallestDenoms, small)
 	return nil
 }
 
-func (db *DB) SmallestDenom() (fto.Weight, error) {
+func (db *DB) SmallestDenom() (stronk.Weight, error) {
 	denoms := db.smallestDenoms
 	if len(denoms) == 0 {
-		return fto.Weight{}, fto.ErrNoSmallestDenom
+		return stronk.Weight{}, stronk.ErrNoSmallestDenom
 	}
 	return denoms[len(denoms)-1], nil
 }
 
-func (db *DB) ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error) {
-	return &fto.ComparableLifts{}, nil
+func (db *DB) ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk.ComparableLifts, error) {
+	return &stronk.ComparableLifts{}, nil
 }
 
-func (db *DB) SkippedWeeks() ([]fto.SkippedWeek, error) {
+func (db *DB) SkippedWeeks() ([]stronk.SkippedWeek, error) {
 	return db.skippedWeeks, nil
 }
 
 func (db *DB) SkipWeek(note string, week, iter int) error {
-	db.skippedWeeks = append(db.skippedWeeks, fto.SkippedWeek{
+	db.skippedWeeks = append(db.skippedWeeks, stronk.SkippedWeek{
 		Week:      week,
 		Iteration: iter,
 		Note:      note,

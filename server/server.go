@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lexacali/fivethreeone/fto"
+	"github.com/bcspragu/stronk"
 )
 
 // SecureCookie represents anything that knows how to encode and decode cookies
@@ -20,32 +20,32 @@ type SecureCookie interface {
 }
 
 type DB interface {
-	SkippedWeeks() ([]fto.SkippedWeek, error)
+	SkippedWeeks() ([]stronk.SkippedWeek, error)
 	SkipWeek(note string, week, iter int) error
 
-	SetTrainingMaxes(press, squat, bench, deadlift fto.Weight) error
-	TrainingMaxes() ([]*fto.TrainingMax, error)
+	SetTrainingMaxes(press, squat, bench, deadlift stronk.Weight) error
+	TrainingMaxes() ([]*stronk.TrainingMax, error)
 
-	SetSmallestDenom(small fto.Weight) error
-	SmallestDenom() (fto.Weight, error)
+	SetSmallestDenom(small stronk.Weight) error
+	SmallestDenom() (stronk.Weight, error)
 
-	RecordLift(ex fto.Exercise, st fto.SetType, weight fto.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (fto.LiftID, error)
+	RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error)
 
-	Lift(id fto.LiftID) (*fto.Lift, error)
-	EditLift(id fto.LiftID, note string, reps int) error
-	RecentLifts() ([]*fto.Lift, error)
-	ComparableLifts(ex fto.Exercise, weight fto.Weight) (*fto.ComparableLifts, error)
+	Lift(id stronk.LiftID) (*stronk.Lift, error)
+	EditLift(id stronk.LiftID, note string, reps int) error
+	RecentLifts() ([]*stronk.Lift, error)
+	ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk.ComparableLifts, error)
 }
 
 type Server struct {
 	mux *http.ServeMux
 
-	routine *fto.Routine
+	routine *stronk.Routine
 	cookies SecureCookie
 	db      DB
 }
 
-func New(routine *fto.Routine, db DB) *Server {
+func New(routine *stronk.Routine, db DB) *Server {
 	s := &Server{
 		routine: routine,
 		db:      db,
@@ -86,21 +86,21 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 	}
 	// For JSON serialization
 	if tms == nil {
-		tms = []*fto.TrainingMax{}
+		tms = []*stronk.TrainingMax{}
 	}
 
-	var sd *fto.Weight
+	var sd *stronk.Weight
 	tmpSD, err := s.db.SmallestDenom()
 	if err == nil {
 		sd = &tmpSD
-	} else if errors.Is(err, fto.ErrNoSmallestDenom) {
+	} else if errors.Is(err, stronk.ErrNoSmallestDenom) {
 		// This is fine, just means we don't have one yet.
 	} else {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if sd != nil && sd.Unit != fto.DeciPounds {
+	if sd != nil && sd.Unit != stronk.DeciPounds {
 		http.Error(w, fmt.Sprintf("unexpected unit %q", sd.Unit), http.StatusInternalServerError)
 		return
 	}
@@ -121,7 +121,7 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResp(w, struct {
-		TrainingMaxes []*fto.TrainingMax
+		TrainingMaxes []*stronk.TrainingMax
 		SmallestDenom string
 	}{tms, sdStr})
 }
@@ -140,7 +140,7 @@ func (s *Server) serveLoadLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lift, err := s.db.Lift(fto.LiftID(id))
+	lift, err := s.db.Lift(stronk.LiftID(id))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -155,7 +155,7 @@ func (s *Server) serveEditLift(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type editReq struct {
-		ID   fto.LiftID `json:"id"`
+		ID   stronk.LiftID `json:"id"`
 		Note string     `json:"note"`
 		Reps int        `json:"reps"`
 	}
@@ -203,14 +203,14 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	parseLocalTM := func(in string) fto.Weight {
+	parseLocalTM := func(in string) stronk.Weight {
 		if err != nil {
-			return fto.Weight{}
+			return stronk.Weight{}
 		}
 
-		var w fto.Weight
+		var w stronk.Weight
 		if w, err = parsePounds(in); err != nil {
-			return fto.Weight{}
+			return stronk.Weight{}
 		}
 
 		return w
@@ -225,14 +225,14 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var smallestDenom fto.Weight
+	var smallestDenom stronk.Weight
 	switch req.SmallestDenom {
 	case "1.25":
-		smallestDenom = fto.Weight{Value: 25, Unit: fto.DeciPounds}
+		smallestDenom = stronk.Weight{Value: 25, Unit: stronk.DeciPounds}
 	case "2.5":
-		smallestDenom = fto.Weight{Value: 50, Unit: fto.DeciPounds}
+		smallestDenom = stronk.Weight{Value: 50, Unit: stronk.DeciPounds}
 	case "5":
-		smallestDenom = fto.Weight{Value: 100, Unit: fto.DeciPounds}
+		smallestDenom = stronk.Weight{Value: 100, Unit: stronk.DeciPounds}
 	default:
 		// Unexpected, and bad.
 		http.Error(w, fmt.Sprintf("invalid smallest_denom %q", req.SmallestDenom), http.StatusBadRequest)
@@ -251,8 +251,8 @@ func (s *Server) serveSetTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 }
 
 // parsePounds takes in a string, like 177.5, and converts it to a deci-pound
-// weight, like fto.Weight{Unit: fto.DeciPounds, Value: 1775}
-func parsePounds(in string) (fto.Weight, error) {
+// weight, like stronk.Weight{Unit: stronk.DeciPounds, Value: 1775}
+func parsePounds(in string) (stronk.Weight, error) {
 	var wholeStr, fracStr string
 	if idx := strings.Index(in, "."); idx > -1 {
 		wholeStr, fracStr = in[:idx], in[idx+1:]
@@ -267,27 +267,27 @@ func parsePounds(in string) (fto.Weight, error) {
 
 	if wholeStr != "" {
 		if whole, err = strconv.Atoi(wholeStr); err != nil {
-			return fto.Weight{}, fmt.Errorf("failed to parse whole portion %q: %w", wholeStr, err)
+			return stronk.Weight{}, fmt.Errorf("failed to parse whole portion %q: %w", wholeStr, err)
 		}
 		if whole < 0 {
-			return fto.Weight{}, fmt.Errorf("weight can't be negative, was %d", whole)
+			return stronk.Weight{}, fmt.Errorf("weight can't be negative, was %d", whole)
 		}
 	}
 
 	if fracStr != "" {
 		if frac, err = strconv.Atoi(fracStr); err != nil {
-			return fto.Weight{}, fmt.Errorf("failed to parse fractional portion %q: %w", fracStr, err)
+			return stronk.Weight{}, fmt.Errorf("failed to parse fractional portion %q: %w", fracStr, err)
 		}
 		if frac < 0 {
-			return fto.Weight{}, fmt.Errorf("weight can't be negative, was %d", frac)
+			return stronk.Weight{}, fmt.Errorf("weight can't be negative, was %d", frac)
 		}
 		if frac > 9 {
-			return fto.Weight{}, fmt.Errorf("fractional part can only contain one digit, was %d", frac)
+			return stronk.Weight{}, fmt.Errorf("fractional part can only contain one digit, was %d", frac)
 		}
 	}
 
-	return fto.Weight{
-		Unit:  fto.DeciPounds,
+	return stronk.Weight{
+		Unit:  stronk.DeciPounds,
 		Value: whole*10 + frac,
 	}, nil
 }
@@ -307,7 +307,7 @@ type nextLiftResp struct {
 	IterationNumber   int
 	DayName           string
 	WeekName          string
-	Workout           []*fto.Movement
+	Workout           []*stronk.Movement
 	NextMovementIndex int
 	NextSetIndex      int
 	OptionalWeek      bool
@@ -333,19 +333,19 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 	}
 
 	// Map iteration -> week -> day -> set type -> lifts
-	m := make(map[int]map[int]map[int]map[fto.SetType][]*fto.Lift)
+	m := make(map[int]map[int]map[int]map[stronk.SetType][]*stronk.Lift)
 	for _, l := range lifts {
 		wm, ok := m[l.IterationNumber]
 		if !ok {
-			wm = make(map[int]map[int]map[fto.SetType][]*fto.Lift)
+			wm = make(map[int]map[int]map[stronk.SetType][]*stronk.Lift)
 		}
 		dm, ok := wm[l.WeekNumber]
 		if !ok {
-			dm = make(map[int]map[fto.SetType][]*fto.Lift)
+			dm = make(map[int]map[stronk.SetType][]*stronk.Lift)
 		}
 		stm, ok := dm[l.DayNumber]
 		if !ok {
-			stm = make(map[fto.SetType][]*fto.Lift)
+			stm = make(map[stronk.SetType][]*stronk.Lift)
 		}
 		lfs := stm[l.SetType]
 		lfs = append(lfs, l)
@@ -443,13 +443,13 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load training maxes: %w", err)
 	}
 
-	getTM := func(ex fto.Exercise) (fto.Weight, bool) {
+	getTM := func(ex stronk.Exercise) (stronk.Weight, bool) {
 		for _, tm := range tms {
 			if tm.Exercise == ex {
 				return tm.Max, true
 			}
 		}
-		return fto.Weight{}, false
+		return stronk.Weight{}, false
 	}
 
 	smallest, err := s.db.SmallestDenom()
@@ -457,7 +457,7 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load smallest denom: %w", err)
 	}
 
-	associatedLift := func(st fto.SetType, ex fto.Exercise, setNum int) (fto.LiftID, bool) {
+	associatedLift := func(st stronk.SetType, ex stronk.Exercise, setNum int) (stronk.LiftID, bool) {
 		wm, ok := m[iter]
 		if !ok {
 			return 0, false
@@ -513,7 +513,7 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 
 	// For JSON serialization
 	if mvmts == nil {
-		mvmts = []*fto.Movement{}
+		mvmts = []*stronk.Movement{}
 	}
 
 	return &nextLiftResp{
@@ -533,7 +533,7 @@ func (s *Server) nextLift() (*nextLiftResp, error) {
 // smallest weights you can use. If we're equally distant between two options,
 // we round up to get the most jacked.
 // E.g. roundWeight(1750DLB, 65%, 25DLB) = 1150DLB
-func roundWeight(trainingMax fto.Weight, percent int, smallestDenom fto.Weight) fto.Weight {
+func roundWeight(trainingMax stronk.Weight, percent int, smallestDenom stronk.Weight) stronk.Weight {
 	if trainingMax.Unit != smallestDenom.Unit {
 		panic(fmt.Sprintf("mismatched units %q and %q for training max and smallest denom", trainingMax.Unit, smallestDenom.Unit))
 	}
@@ -546,15 +546,15 @@ func roundWeight(trainingMax fto.Weight, percent int, smallestDenom fto.Weight) 
 	lower := trunc * smallestDenom.Value
 	upper := (trunc + 1) * smallestDenom.Value
 	if v-float64(lower) < float64(upper)-v {
-		return fto.Weight{Value: lower, Unit: trainingMax.Unit}
+		return stronk.Weight{Value: lower, Unit: trainingMax.Unit}
 	} else {
-		return fto.Weight{Value: upper, Unit: trainingMax.Unit}
+		return stronk.Weight{Value: upper, Unit: trainingMax.Unit}
 	}
 }
 
 type recordReq struct {
-	Exercise  fto.Exercise `json:"Exercise"`
-	SetType   fto.SetType  `json:"SetType"`
+	Exercise  stronk.Exercise `json:"Exercise"`
+	SetType   stronk.SetType  `json:"SetType"`
 	Weight    string       `json:"Weight"`
 	Set       int          `json:"Set"`
 	Reps      int          `json:"Reps"`
@@ -600,7 +600,7 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 }
 
 type recordLiftResp struct {
-	LiftID   fto.LiftID
+	LiftID   stronk.LiftID
 	NextLift *nextLiftResp
 }
 
@@ -641,7 +641,7 @@ type lastSet struct {
 	NoneDone      bool
 }
 
-func lastSetDone(day, week, iter int, lifts []*fto.Lift, dayRoutine *fto.WorkoutDay) lastSet {
+func lastSetDone(day, week, iter int, lifts []*stronk.Lift, dayRoutine *stronk.WorkoutDay) lastSet {
 	// If we have no recorded lifts for the day, it's safe to say the first
 	// movement to do is the first movement we have.
 	if len(lifts) == 0 {
@@ -692,8 +692,8 @@ func lastSetDone(day, week, iter int, lifts []*fto.Lift, dayRoutine *fto.Workout
 	}
 }
 
-func filterLifts(lifts []*fto.Lift, day, week, iter int) []*fto.Lift {
-	var out []*fto.Lift
+func filterLifts(lifts []*stronk.Lift, day, week, iter int) []*stronk.Lift {
+	var out []*stronk.Lift
 	for _, lift := range lifts {
 		if lift.DayNumber == day && lift.WeekNumber == week && lift.IterationNumber == iter {
 			out = append(out, lift)

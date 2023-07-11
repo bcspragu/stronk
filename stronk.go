@@ -1,6 +1,5 @@
-// Package fto ((f)ive(t)hree(o)ne) contains the domain types
-// for doing exercise stuff.
-package fto
+// Package stronk contains the domain types for doing exercise stuff.
+package stronk
 
 import (
 	"errors"

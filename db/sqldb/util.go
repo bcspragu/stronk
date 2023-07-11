@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lexacali/fivethreeone/fto"
+	"github.com/bcspragu/stronk"
 )
 
 type sqlWeight struct {
-	w *fto.Weight
+	w *stronk.Weight
 }
 
 func (sw sqlWeight) Value() (driver.Value, error) {
@@ -47,26 +47,26 @@ func (sw *sqlWeight) Scan(val interface{}) error {
 	}
 }
 
-func parseWeight(v string) (fto.Weight, error) {
+func parseWeight(v string) (stronk.Weight, error) {
 	ps := strings.Split(v, ":")
 	if n := len(ps); n != 2 {
-		return fto.Weight{}, fmt.Errorf("malformed weight had %d parts", n)
+		return stronk.Weight{}, fmt.Errorf("malformed weight had %d parts", n)
 	}
 
 	val, err := strconv.Atoi(ps[0])
 	if err != nil {
-		return fto.Weight{}, fmt.Errorf("failed to parse weight %q: %w", ps[0], err)
+		return stronk.Weight{}, fmt.Errorf("failed to parse weight %q: %w", ps[0], err)
 	}
 
-	var unit fto.WeightUnit
+	var unit stronk.WeightUnit
 	switch ps[1] {
 	case "DECI_POUNDS":
-		unit = fto.DeciPounds
+		unit = stronk.DeciPounds
 	default:
-		return fto.Weight{}, fmt.Errorf("unknown unit %q", ps[1])
+		return stronk.Weight{}, fmt.Errorf("unknown unit %q", ps[1])
 	}
 
-	return fto.Weight{
+	return stronk.Weight{
 		Unit:  unit,
 		Value: val,
 	}, nil
