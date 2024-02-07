@@ -1,5 +1,5 @@
 # docker build -t 192.168.5.3:5000/stronk .
-FROM golang:1.20 as build
+FROM golang:1.21 as build
 
 WORKDIR /project
 
@@ -16,7 +16,7 @@ COPY routine.example.json /project
 
 RUN go test ./... && GOOS=linux go build -ldflags "-linkmode external -extldflags -static" -o stronk github.com/bcspragu/stronk/cmd/server
 
-FROM gcr.io/distroless/static-debian11
+FROM gcr.io/distroless/static-debian12
 COPY --from=build /project/stronk /
 COPY db/sqldb/migrations /migrations
 CMD ["/stronk"]

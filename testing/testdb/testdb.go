@@ -124,6 +124,10 @@ func (db *DB) ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk
 	return &stronk.ComparableLifts{}, nil
 }
 
+func (db *DB) RecentFailureSets() ([]*stronk.Lift, error) {
+	return []*stronk.Lift{}, nil
+}
+
 func (db *DB) SkippedWeeks() ([]stronk.SkippedWeek, error) {
 	return db.skippedWeeks, nil
 }

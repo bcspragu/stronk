@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"slices"
+
 	"github.com/bcspragu/stronk"
 )
 
@@ -35,6 +37,7 @@ type DB interface {
 	EditLift(id stronk.LiftID, note string, reps int) error
 	RecentLifts() ([]*stronk.Lift, error)
 	ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk.ComparableLifts, error)
+	RecentFailureSets() ([]*stronk.Lift, error)
 }
 
 type Server struct {
@@ -120,10 +123,139 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	jsonResp(w, struct {
-		TrainingMaxes []*stronk.TrainingMax
-		SmallestDenom string
-	}{tms, sdStr})
+	// Load the most recent full cycle of failure sets.
+	failureSets, err := s.db.RecentFailureSets()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(failureSets) == 0 {
+		// No data, just return what we've got I guess
+		jsonResp(w, trainingMaxResp{TrainingMaxes: tms, SmallestDenom: sdStr})
+		return
+	}
+
+	// Group by iteration number
+	byIter := make(map[int][]*stronk.Lift)
+	for _, set := range failureSets {
+		byIter[set.IterationNumber] = append(byIter[set.IterationNumber], set)
+	}
+
+	highestIter := -1
+	for iter := range byIter {
+		if highestIter == -1 {
+			highestIter = iter
+			continue
+		}
+		if iter > highestIter {
+			highestIter = iter
+		}
+	}
+
+	minFailSet, maxFailSet := s.numFailureSets()
+
+	// Means that iteration hasn't been completed yet
+	if len(byIter[highestIter]) < minFailSet {
+		// Try the previous one
+		if len(byIter[highestIter-1]) >= minFailSet {
+			highestIter = highestIter - 1
+		} else {
+			// Something is wonky
+			http.Error(w, fmt.Sprintf("neither of last two iterations (%d, %d) was in range of expected number of failure sets (%d, %d)", highestIter, highestIter-1, minFailSet, maxFailSet), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// Use failures from the `highestIter`, group by week
+	byWeek := make(map[int][]*stronk.Lift)
+	for _, set := range byIter[highestIter] {
+		byWeek[set.WeekNumber] = append(byWeek[set.WeekNumber], set)
+	}
+
+	type withWeek struct {
+		weekNum int
+		lifts   []*stronk.Lift
+	}
+
+	var wwks []withWeek
+	for weekNum, lifts := range byWeek {
+		wwks = append(wwks, withWeek{weekNum: weekNum, lifts: lifts})
+	}
+
+	slices.SortFunc(wwks, func(a, b withWeek) int { return a.weekNum - b.weekNum })
+
+	liftOrder := s.liftOrder()
+	// Now pull the weeks out of that slice.
+	var fatigueWeeks [][]*stronk.Lift
+	for _, wwk := range wwks {
+		// Order each week by our usual lift order
+		slices.SortFunc(wwk.lifts, func(a, b *stronk.Lift) int { return liftOrder[a.Exercise] - liftOrder[b.Exercise] })
+		fatigueWeeks = append(fatigueWeeks, wwk.lifts)
+	}
+
+	jsonResp(w, trainingMaxResp{TrainingMaxes: tms, SmallestDenom: sdStr, LatestFailureSets: fatigueWeeks})
+}
+
+func (s *Server) liftOrder() map[stronk.Exercise]int {
+	if len(s.routine.Weeks) == 0 {
+		return make(map[stronk.Exercise]int)
+	}
+
+	// Only look at the first week
+	week := s.routine.Weeks[0]
+
+	m := make(map[stronk.Exercise]int)
+
+	cnt := 0
+	for _, day := range week.Days {
+		// Only look at the main movement on each day.
+		ex, ok := exerciseForDay(day.Movements)
+		if !ok {
+			return make(map[stronk.Exercise]int)
+		}
+		m[ex] = cnt
+		cnt++
+	}
+
+	return m
+}
+
+func exerciseForDay(mvmts []*stronk.Movement) (stronk.Exercise, bool) {
+	for _, mvmt := range mvmts {
+		if mvmt.SetType != stronk.Main {
+			continue
+		}
+		return mvmt.Exercise, true
+	}
+
+	return "", false
+}
+
+func (s *Server) numFailureSets() (int, int) {
+	v, opt := 0, 0
+	for _, w := range s.routine.Weeks {
+		for _, d := range w.Days {
+			for _, m := range d.Movements {
+				for _, s := range m.Sets {
+					if s.ToFailure {
+						if w.Optional {
+							opt++
+							continue
+						}
+						v++
+					}
+				}
+			}
+		}
+	}
+	return v, v + opt
+}
+
+type trainingMaxResp struct {
+	TrainingMaxes []*stronk.TrainingMax
+	SmallestDenom string
+	// Grouped by week
+	LatestFailureSets [][]*stronk.Lift
 }
 
 func (s *Server) serveLoadLift(w http.ResponseWriter, r *http.Request) {
@@ -156,8 +288,8 @@ func (s *Server) serveEditLift(w http.ResponseWriter, r *http.Request) {
 
 	type editReq struct {
 		ID   stronk.LiftID `json:"id"`
-		Note string     `json:"note"`
-		Reps int        `json:"reps"`
+		Note string        `json:"note"`
+		Reps int           `json:"reps"`
 	}
 
 	var req editReq
@@ -555,14 +687,14 @@ func roundWeight(trainingMax stronk.Weight, percent int, smallestDenom stronk.We
 type recordReq struct {
 	Exercise  stronk.Exercise `json:"Exercise"`
 	SetType   stronk.SetType  `json:"SetType"`
-	Weight    string       `json:"Weight"`
-	Set       int          `json:"Set"`
-	Reps      int          `json:"Reps"`
-	Note      string       `json:"Note"`
-	Day       int          `json:"Day"`
-	Week      int          `json:"Week"`
-	Iteration int          `json:"Iteration"`
-	ToFailure bool         `json:"ToFailure"`
+	Weight    string          `json:"Weight"`
+	Set       int             `json:"Set"`
+	Reps      int             `json:"Reps"`
+	Note      string          `json:"Note"`
+	Day       int             `json:"Day"`
+	Week      int             `json:"Week"`
+	Iteration int             `json:"Iteration"`
+	ToFailure bool            `json:"ToFailure"`
 }
 
 func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {

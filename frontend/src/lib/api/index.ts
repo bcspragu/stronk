@@ -67,6 +67,7 @@ export interface TrainingMax {
 export interface TrainingMaxesResponse {
 	TrainingMaxes: TrainingMax[];
 	SmallestDenom?: string;
+	LatestFailureSets?: Lift[][];
 }
 
 export interface SetTrainingMaxesRequest {

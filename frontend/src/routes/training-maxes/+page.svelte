@@ -19,6 +19,7 @@
 	let squat = getTM('SQUAT');
 	let bench = getTM('BENCH_PRESS');
 	let deadlift = getTM('DEADLIFT');
+	let latestFailureSets = data.LatestFailureSets ?? [];
 
 	// The smallest denominator is the minimal delta between two loads that you
 	// can do with your equipment, the smallest increment of change. E.g what's the
@@ -96,3 +97,13 @@
 </select>
 <br />
 <button on:click={setTrainingMaxes} disabled={!canSubmit}>Enter</button>
+<hr>
+<h2>Previous Cycle</h2>
+{#each latestFailureSets as week, i}
+	<h3>Week {i+1}</h3>
+	<ul>
+	{#each week as lift, j}
+			<li>{lift.Exercise}: {lift.Weight.Value / 10} for {lift.Reps} reps {#if lift.Note}{lift.Note}{/if}</li>
+	{/each}
+	</ul>
+{/each}

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang-migrate/migrate/v4"
 	"github.com/bcspragu/stronk"
+	"github.com/golang-migrate/migrate/v4"
 	"github.com/mattn/go-sqlite3"
 
 	migratesqlite3 "github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -158,6 +158,34 @@ LIMIT 250`
 	}
 
 	return stronk.CalcComparables(lfs, weight), nil
+}
+
+func (db *DB) RecentFailureSets() ([]*stronk.Lift, error) {
+	var lfs []*stronk.Lift
+	err := db.transact(func(tx *sql.Tx) error {
+		q := `
+SELECT lifts.id, exercises.name, lifts.set_type, lifts.weight, lifts.set_number, lifts.reps, lifts.lift_note, lifts.day_number, lifts.week_number, lifts.iteration_number, lifts.to_failure
+FROM lifts
+JOIN exercises
+	ON lifts.exercise_id = exercises.id
+WHERE set_type = 'MAIN'
+	AND to_failure = TRUE
+ORDER BY iteration_number DESC, week_number DESC, day_number DESC, lifts.created_at DESC
+LIMIT 250`
+
+		rows, err := tx.Query(q)
+		if err != nil {
+			return fmt.Errorf("failed to query training_maxes: %w", err)
+		}
+		if lfs, err = lifts(rows); err != nil {
+			return fmt.Errorf("failed to scan training_maxes: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set lifts: %w", err)
+	}
+	return lfs, nil
 }
 
 func (db *DB) RecentLifts() ([]*stronk.Lift, error) {
