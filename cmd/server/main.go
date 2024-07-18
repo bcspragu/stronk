@@ -8,8 +8,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/bcspragu/stronk/db/sqldb"
 	"github.com/bcspragu/stronk"
+	"github.com/bcspragu/stronk/db/sqldb"
 	"github.com/bcspragu/stronk/server"
 	"github.com/namsral/flag"
 	"github.com/rs/cors"

@@ -97,13 +97,15 @@
 </select>
 <br />
 <button on:click={setTrainingMaxes} disabled={!canSubmit}>Enter</button>
-<hr>
+<hr />
 <h2>Previous Cycle</h2>
 {#each latestFailureSets as week, i}
-	<h3>Week {i+1}</h3>
+	<h3>Week {i + 1}</h3>
 	<ul>
-	{#each week as lift, j}
-			<li>{lift.Exercise}: {lift.Weight.Value / 10} for {lift.Reps} reps {#if lift.Note}{lift.Note}{/if}</li>
-	{/each}
+		{#each week as lift}
+			<li>
+				{lift.Exercise}: {lift.Weight.Value / 10} for {lift.Reps} reps {#if lift.Note}{lift.Note}{/if}
+			</li>
+		{/each}
 	</ul>
 {/each}

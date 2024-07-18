@@ -14,7 +14,7 @@
 
 <div class="modal hidden" class:hidden={!active}>
 	<div class="modal-content">
-		<span class="close" on:click={close} on:keypress={close}>&times;</span>
+		<button class="close" on:click={close} on:keypress={close}>&times;</button>
 		<slot />
 	</div>
 </div>
@@ -45,10 +45,18 @@
 
 	/* The Close Button */
 	.close {
-		color: #aaa;
 		float: right;
+
+		font: inherit;
+		color: #aaa;
 		font-size: 28px;
 		font-weight: bold;
+
+		background: none;
+		border: none;
+		padding: 0;
+		margin: 0;
+		cursor: pointer;
 	}
 
 	.close:hover,

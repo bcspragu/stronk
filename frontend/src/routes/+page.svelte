@@ -31,8 +31,10 @@
 	let editReps = 0;
 	let editNote = '';
 
-	$: curMvmt = data.Workout[data.NextMovementIndex];
-	$: curSet = curMvmt.Sets[data.NextSetIndex];
+	let liftInfo: NextLiftResponse = data;
+
+	$: curMvmt = liftInfo.Workout[liftInfo.NextMovementIndex];
+	$: curSet = curMvmt.Sets[liftInfo.NextSetIndex];
 	$: reps = curSet.RepTarget;
 
 	const decReps = () => {
@@ -69,24 +71,24 @@
 	};
 
 	const record = (numReps: number) => {
-		var req = {
+		var req: RecordLiftRequest = {
 			Exercise: curMvmt.Exercise,
 			SetType: curMvmt.SetType,
 			Weight: (curSet.WeightTarget.Value / 10).toString(),
-			Set: data.NextSetIndex,
+			Set: liftInfo.NextSetIndex,
 			Reps: numReps,
 			Note: note,
-			Day: data.DayNumber,
-			Week: data.WeekNumber,
-			Iteration: data.IterationNumber,
+			Day: liftInfo.DayNumber,
+			Week: liftInfo.WeekNumber,
+			Iteration: liftInfo.IterationNumber,
 			ToFailure: curSet.ToFailure
-		} as RecordLiftRequest;
+		};
 
 		updating = true;
 		fetch(apipath('/api/recordLift'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json() as Promise<RecordLiftResponse>)
 			.then((dat) => {
-				data = dat.NextLift;
+				liftInfo = dat.NextLift;
 			})
 			.finally(() => {
 				skipNote = '';
@@ -102,8 +104,8 @@
 
 	const skipOptionalWeek = () => {
 		var req = {
-			Week: data.WeekNumber,
-			Iteration: data.IterationNumber,
+			Week: liftInfo.WeekNumber,
+			Iteration: liftInfo.IterationNumber,
 			Note: skipNote
 		} as SkipOptionalWeekRequest;
 
@@ -111,7 +113,7 @@
 		fetch(apipath('/api/skipOptionalWeek'), { method: 'POST', body: JSON.stringify(req) })
 			.then((resp) => resp.json() as Promise<NextLiftResponse>)
 			.then((dat) => {
-				data = dat;
+				liftInfo = dat;
 			})
 			.finally(() => {
 				skipNote = '';
@@ -172,30 +174,33 @@
 		>
 	</Modal>
 
-	{#if data.OptionalWeek}
-		<h1 class="header">Skip optional<br />{data.WeekName}?</h1>
-		<button class="dont-skip-button" on:click={() => (data.OptionalWeek = false)}
+	{#if liftInfo.OptionalWeek}
+		<h1 class="header">Skip optional<br />{liftInfo.WeekName}?</h1>
+		<button class="dont-skip-button" on:click={() => (liftInfo.OptionalWeek = false)}
 			>Do the week</button
 		>
 		<button class="skip-button" on:click={skipOptionalWeek}>Skip it</button>
 		<textarea class="note" bind:value={skipNote} rows="3" />
 	{:else}
-		<h1 class="header">{data.WeekName} - {data.DayName}</h1>
+		<h1 class="header">{liftInfo.WeekName} - {liftInfo.DayName}</h1>
 
 		<ul class="lift-list">
-			{#each data.Workout as mvmt, i}
+			{#each liftInfo.Workout as mvmt, i}
 				<li>
 					{mvmt.Exercise} - {mvmt.SetType}
 					<ul>
 						{#each mvmt.Sets as set, j}
 							<li
-								class:current-lift={i === data.NextMovementIndex && j === data.NextSetIndex}
-								class:completed={i < data.NextMovementIndex ||
-									(i == data.NextMovementIndex && j < data.NextSetIndex)}
-								on:click={() => setEditingLift(set.AssociatedLiftID)}
-								on:keypress={() => setEditingLift(set.AssociatedLiftID)}
+								class:current-lift={i === liftInfo.NextMovementIndex && j === liftInfo.NextSetIndex}
 							>
-								{setString(set)}
+								<button
+									class="lift-button"
+									class:completed={i < liftInfo.NextMovementIndex ||
+										(i == liftInfo.NextMovementIndex && j < liftInfo.NextSetIndex)}
+									on:click={() => setEditingLift(set.AssociatedLiftID)}
+								>
+									{setString(set)}
+								</button>
 							</li>
 						{/each}
 					</ul>
@@ -361,5 +366,16 @@
 		width: 50vw;
 		height: 30px;
 		margin: 15px auto;
+	}
+
+	.lift-button {
+		background: none;
+		border: none;
+		color: inherit;
+		font: inherit;
+		padding: 0;
+		margin: 0;
+		cursor: pointer;
+		text-align: left;
 	}
 </style>

@@ -3,8 +3,8 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"dev": "vite dev --mode dev",
-		"build:dev": "vite build --mode dev",
+		"dev": "vite dev",
+		"build:dev": "vite build",
 		"build:cloud": "vite build --mode cloud",
 		"preview": "vite preview",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
