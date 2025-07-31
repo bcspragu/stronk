@@ -1,5 +1,5 @@
 # docker build -t 192.168.5.3:5000/stronk .
-FROM golang:1.21 as build
+FROM golang:1.24 as build
 
 WORKDIR /project
 

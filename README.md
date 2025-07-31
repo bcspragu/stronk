@@ -73,7 +73,9 @@ spec:
         - image: <registry>/stronk-fe
           name: frontend
           env:
-          - name: PUBLIC_API_BASE_URL
+          - name: SERVER_ENDPOINT
+            value: "https://stronk.example.com"
+          - name: LOCAL_BACKEND_ENDPOINT
             value: "http://localhost:8080"
           ports:
             - containerPort: 3000
