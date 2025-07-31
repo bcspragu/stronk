@@ -43,7 +43,11 @@ Frontend is available at `localhost:5173`, backend is `localhost:8080`.
 
 ## Deployment
 
-Note: the app has no authentication, make sure to introduce basic auth or deploy the app behind something like [Tailscale](https://tailscale.com/)
+> [!IMPORTANT]
+> The app has no authentication, make sure to introduce basic auth or deploy the app behind something like [Tailscale](https://tailscale.com/)
+
+> [!NOTE]
+> [Commit 6b4f33f](https://github.com/bcspragu/stronk/commit/6b4f33f483ba57d9d64df898134b7b5088cb8933) changed how `.env` vars work for local dev + deployment, check the commit message for details if you're upgrading.
 
 The main way to deploy this is with two Docker containers `stronk` and `stronk-fe`, which run the backend and frontend respectively. I run this in a local K8s deployment, using a config like:
 
