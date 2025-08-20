@@ -403,18 +403,23 @@ func New(dbPath, migrationsPath string) (*DB, error) {
 		return origErr
 	}
 
-	// Set sensible SQLite defaults for better performance and reliability
+	// Set optimized SQLite defaults for single-user fitness app
 	// See https://briandouglas.ie/sqlite-defaults/
 	pragmas := []string{
 		"PRAGMA journal_mode = WAL",
 		"PRAGMA synchronous = NORMAL",
-		"PRAGMA busy_timeout = 5000",
-		"PRAGMA cache_size = -20000",
+		// Reduced from article, 1s is fine for a single-user app.
+		"PRAGMA busy_timeout = 1000",
+		// Reduced from article, our entire DB will never be more than a few megs tops
+		"PRAGMA cache_size = -5000",
 		"PRAGMA foreign_keys = ON",
-		"PRAGMA auto_vacuum = INCREMENTAL",
+		// We don't really delete anything
+		"PRAGMA auto_vacuum = FULL",
 		"PRAGMA temp_store = MEMORY",
-		"PRAGMA mmap_size = 2147483648",
-		"PRAGMA page_size = 8192",
+		// Reduced from article, 256MB memory-mapped I/O is fine for us
+		"PRAGMA mmap_size = 268435456",
+		// Reduced from article, our rows are small
+		"PRAGMA page_size = 4096",
 	}
 
 	for _, pragma := range pragmas {
