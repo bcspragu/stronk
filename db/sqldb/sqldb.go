@@ -392,7 +392,7 @@ func skippedWeeks(rows *sql.Rows) ([]stronk.SkippedWeek, error) {
 }
 
 func New(dbPath, migrationsPath string) (*DB, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_loc=UTC")
+	db, err := sql.Open("sqlite3", dbPath+"?_loc=UTC")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite DB: %w", err)
 	}
@@ -401,6 +401,26 @@ func New(dbPath, migrationsPath string) (*DB, error) {
 			return fmt.Errorf("error closing DB (%v) while handling original error: %w", closeErr, origErr)
 		}
 		return origErr
+	}
+
+	// Set sensible SQLite defaults for better performance and reliability
+	// See https://briandouglas.ie/sqlite-defaults/
+	pragmas := []string{
+		"PRAGMA journal_mode = WAL",
+		"PRAGMA synchronous = NORMAL",
+		"PRAGMA busy_timeout = 5000",
+		"PRAGMA cache_size = -20000",
+		"PRAGMA foreign_keys = ON",
+		"PRAGMA auto_vacuum = INCREMENTAL",
+		"PRAGMA temp_store = MEMORY",
+		"PRAGMA mmap_size = 2147483648",
+		"PRAGMA page_size = 8192",
+	}
+
+	for _, pragma := range pragmas {
+		if _, err := db.Exec(pragma); err != nil {
+			return nil, cleanupOnError(fmt.Errorf("failed to set pragma %q: %w", pragma, err))
+		}
 	}
 
 	driver, err := migratesqlite3.WithInstance(db, &migratesqlite3.Config{
