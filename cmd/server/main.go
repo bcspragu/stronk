@@ -37,7 +37,7 @@ func run() error {
 		return fmt.Errorf("failed to load users file: %v", err)
 	}
 
-	db, err := sqldb.New(*dbFile, *migrationDir)
+	db, err := sqldb.New(*dbFile, *migrationDir, routine)
 	if err != nil {
 		return fmt.Errorf("failed to load SQLite db: %v", err)
 	}

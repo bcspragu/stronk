@@ -4,7 +4,7 @@
 CREATE TABLE routines (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   name TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now'))
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Routine weeks table - represents a week within a routine
@@ -53,11 +53,12 @@ CREATE TABLE lifts_new (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   routine_set_id INTEGER NOT NULL,
   weight TEXT NOT NULL,
-  reps INTEGER, -- NULL if same as routine, or for non-failure sets
+  reps INTEGER NOT NULL,
   lift_note TEXT,
-  day_number INTEGER NOT NULL,
-  week_number INTEGER NOT NULL,
-  iteration_number INTEGER NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%f', 'now')),
   FOREIGN KEY (routine_set_id) REFERENCES routine_sets (id)
 );
+
+-- This is important! Basic queries will be quite slow otherwise.
+-- I measured this at 370ms vs 7ms (a 50x reduction) on my personal instance.
+CREATE INDEX idx_lifts_created_at ON lifts_new (created_at);

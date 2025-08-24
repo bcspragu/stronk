@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,14 +39,13 @@ type DB interface {
 	MigrateLiftsToNewFormat(storedRoutine *stronk.StoredRoutine) error
 
 	// New lift methods
-	RecordLiftNew(routineSetID stronk.RoutineSetID, weight stronk.Weight, reps *int, note string, day, week, iter int) (stronk.LiftID, error)
-	EditLiftNew(id stronk.LiftID, note string, reps *int) error
-
-	// Legacy lift methods (for backward compatibility during migration)
-	RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error)
-	Lift(id stronk.LiftID) (*stronk.Lift, error)
+	RecordLift(routineSetID stronk.RoutineSetID, reps int, note string, weight stronk.Weight) (stronk.LiftID, error)
 	EditLift(id stronk.LiftID, note string, reps int) error
+
+	Lift(id stronk.LiftID) (*stronk.Lift, error)
 	RecentLifts() ([]*stronk.Lift, error)
+	LatestLift() (*stronk.Lift, error)
+	LatestLiftPerSetID(setIDs []stronk.RoutineSetID) (map[stronk.RoutineSetID]*stronk.Lift, error)
 	ComparableLifts(ex stronk.Exercise, weight stronk.Weight) (*stronk.ComparableLifts, error)
 	RecentFailureSets() ([]*stronk.Lift, error)
 }
@@ -53,25 +53,25 @@ type DB interface {
 type Server struct {
 	mux *http.ServeMux
 
-	routine       *stronk.Routine
-	storedRoutine *stronk.StoredRoutine
-	cookies       SecureCookie
-	db            DB
+	routine *stronk.StoredRoutine
+	cookies SecureCookie
+	db      DB
 }
 
 func New(routine *stronk.Routine, db DB) *Server {
 	s := &Server{
-		routine: routine,
-		db:      db,
+		db: db,
 	}
-	
+
 	// Initialize the routine system
-	if err := s.initRoutine(); err != nil {
+	storedRoutine, err := s.initRoutine(routine)
+	if err != nil {
 		// For now, we'll continue with the old system if initialization fails
 		// In a real deployment, you might want to handle this differently
-		fmt.Printf("Warning: Failed to initialize routine system: %v\n", err)
+		log.Printf("Warning: Failed to initialize routine system: %v\n", err)
 	}
-	
+	s.routine = storedRoutine
+
 	s.initMux()
 	return s
 }
@@ -82,54 +82,41 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // initRoutine initializes the routine system by checking if the current routine
 // needs to be stored in the database
-func (s *Server) initRoutine() error {
+func (s *Server) initRoutine(routine *stronk.Routine) (*stronk.StoredRoutine, error) {
 	// Get the current stored routine
 	storedRoutine, err := s.db.GetCurrentRoutine()
 	if err != nil {
-		return fmt.Errorf("failed to get current routine: %w", err)
+		return nil, fmt.Errorf("failed to get current routine: %w", err)
 	}
 
-	// If we have no stored routine, store the current one and migrate existing lifts
+	// If we have no stored routine, something went wrong with the DB migration.
 	if storedRoutine == nil {
-		stored, err := s.db.StoreRoutine(s.routine)
-		if err != nil {
-			return fmt.Errorf("failed to store initial routine: %w", err)
-		}
-		s.storedRoutine = stored
-		
-		// Migrate existing lifts to the new format
-		if err := s.db.MigrateLiftsToNewFormat(stored); err != nil {
-			return fmt.Errorf("failed to migrate lifts to new format: %w", err)
-		}
-		
-		return nil
+		return nil, errors.New("no routine stored in database, this shouldn't be possible")
 	}
 
 	// Check if the current routine differs from the stored one
-	currentHash, err := s.routine.Hash()
+	currentHash, err := routine.Hash()
 	if err != nil {
-		return fmt.Errorf("failed to hash current routine: %w", err)
+		return nil, fmt.Errorf("failed to hash current routine: %w", err)
 	}
 
-	// Convert stored routine back to Routine for comparison
-	// For now, we'll just assume they're different if we can't compare easily
-	// A more robust implementation might convert StoredRoutine back to Routine
-	// or store the hash in the database
-	
-	// For simplicity, let's just check if the names match
-	if storedRoutine.Name != s.routine.Name {
-		// Store the new routine
-		stored, err := s.db.StoreRoutine(s.routine)
+	storedHash, err := storedRoutine.ToRoutine().Hash()
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash stored routine: %w", err)
+	}
+
+	// If these don't match, it means the user has uploaded a new routine, and we should store that.
+	if currentHash != storedHash {
+		log.Println("Detected change in routine, storing new one in DB")
+		storedRoutine, err := s.db.StoreRoutine(routine)
 		if err != nil {
-			return fmt.Errorf("failed to store updated routine: %w", err)
+			return nil, fmt.Errorf("failed to store updated routine: %w", err)
 		}
-		s.storedRoutine = stored
-		return nil
+		return storedRoutine, nil
 	}
 
 	// Use the existing stored routine
-	s.storedRoutine = storedRoutine
-	return nil
+	return storedRoutine, nil
 }
 
 func (s *Server) initMux() {
@@ -214,10 +201,6 @@ func (s *Server) serveTrainingMaxes(w http.ResponseWriter, r *http.Request) {
 
 	highestIter := -1
 	for iter := range byIter {
-		if highestIter == -1 {
-			highestIter = iter
-			continue
-		}
 		if iter > highestIter {
 			highestIter = iter
 		}
@@ -291,7 +274,7 @@ func (s *Server) liftOrder() map[stronk.Exercise]int {
 	return m
 }
 
-func exerciseForDay(mvmts []*stronk.Movement) (stronk.Exercise, bool) {
+func exerciseForDay(mvmts []*stronk.StoredRoutineMovement) (stronk.Exercise, bool) {
 	for _, mvmt := range mvmts {
 		if mvmt.SetType != stronk.Main {
 			continue
@@ -526,52 +509,24 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 }
 
 func (s *Server) nextLift() (*nextLiftResp, error) {
-	// Use the stored routine if available, otherwise fall back to the JSON routine
-	if s.storedRoutine != nil {
-		return s.nextLiftWithStoredRoutine()
-	}
-	
-	// Fallback to old logic for backwards compatibility
-	return s.nextLiftLegacy()
-}
-
-func (s *Server) nextLiftWithStoredRoutine() (*nextLiftResp, error) {
-	// TODO: Implement the new logic using stored routines
-	// For now, fall back to legacy method
-	return s.nextLiftLegacy()
-}
-
-func (s *Server) nextLiftLegacy() (*nextLiftResp, error) {
-	// Now the tricky part - we need to figure out the last one that a user
-	// actually completed. Here's our strategy for doing so
-	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
-	//  2. Correlate that with the routine, using ~~magic~~ (read: bad and hacky heuristics)
-	lifts, err := s.db.RecentLifts()
+	// Just load the latest lift we've done.
+	ll, err := s.db.LatestLift()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load recent lifts: %w", err)
+		return nil, fmt.Errorf("failed to load the latest lift: %w", err)
 	}
 
-	// Map iteration -> week -> day -> set type -> lifts
-	m := make(map[int]map[int]map[int]map[stronk.SetType][]*stronk.Lift)
-	for _, l := range lifts {
-		wm, ok := m[l.IterationNumber]
-		if !ok {
-			wm = make(map[int]map[int]map[stronk.SetType][]*stronk.Lift)
-		}
-		dm, ok := wm[l.WeekNumber]
-		if !ok {
-			dm = make(map[int]map[stronk.SetType][]*stronk.Lift)
-		}
-		stm, ok := dm[l.DayNumber]
-		if !ok {
-			stm = make(map[stronk.SetType][]*stronk.Lift)
-		}
-		lfs := stm[l.SetType]
-		lfs = append(lfs, l)
-		stm[l.SetType] = lfs
-		dm[l.DayNumber] = stm
-		wm[l.WeekNumber] = dm
-		m[l.IterationNumber] = wm
+	var (
+		setIndex, movementIndex, dayIndex, weekIndex, iterIndex int
+		setType                                                 stronk.SetType
+	)
+	if ll != nil {
+		setIndex = ll.SetNumber
+		dayIndex = ll.DayNumber
+		weekIndex = ll.WeekNumber
+		iterIndex = ll.IterationNumber
+		setType = ll.SetType
+	} else {
+		setType = s.routine.Weeks[0].Days[0].Movements[0].SetType
 	}
 
 	skipWeeks, err := s.db.SkippedWeeks()
@@ -584,77 +539,74 @@ func (s *Server) nextLiftLegacy() (*nextLiftResp, error) {
 		swm[weekIter{week: sw.Week, iteration: sw.Iteration}] = true
 	}
 
-	// Load the latest day
-	var day, week, iter int
-	if len(lifts) > 0 {
-		latest := lifts[0]
-		day, week, iter = latest.DayNumber, latest.WeekNumber, latest.IterationNumber
-	}
-
-	routine := s.routine
-
-	// Load the day from the routine.
-	if week >= len(routine.Weeks) {
-		return nil, fmt.Errorf("lift was for week %d that doesn't exist in routine", week)
-	}
-
-	if day >= len(routine.Weeks[week].Days) {
-		return nil, fmt.Errorf("lift was for day %d (week %d) that doesn't exist in routine", day, week)
-	}
-
-	dayRoutine := routine.Weeks[week].Days[day]
-
-	// Now we need to figure out if we finished the day's lifts or not.
-	dayLifts := filterLifts(lifts, day, week, iter)
-	set := lastSetDone(day, week, iter, dayLifts, dayRoutine)
-
-	// Go to the next set in the movement if we have one.
-	// If not, go to the next movement in the routine if we have one.
-	// If not, go to the next day in the week if we have one.
-	// If not, go to the next week in the iteration if we have one.
-	// If not, go to the next iteration, which we can always do.
-	if set.SetIndex < len(dayRoutine.Movements[set.MovementIndex].Sets)-1 {
-		if !set.NoneDone {
-			set.SetIndex++
+	// Now, we calulate the next lift in our routine based on the latest one we've done.
+	week := s.routine.Weeks[weekIndex]
+	day := week.Days[dayIndex]
+	var (
+		smvmt *stronk.StoredRoutineMovement
+	)
+	for idx, mvmt := range day.Movements {
+		if mvmt.SetType == setType {
+			smvmt = mvmt
+			movementIndex = idx
+			break
 		}
-	} else if set.MovementIndex < len(dayRoutine.Movements)-1 {
-		set.SetIndex = 0
-		set.MovementIndex++
-	} else if day < len(routine.Weeks[week].Days)-1 {
-		set.SetIndex = 0
-		set.MovementIndex = 0
-		day++
-	} else if week < len(routine.Weeks)-1 {
-		set.SetIndex = 0
-		set.MovementIndex = 0
-		day = 0
-		week++
-	} else {
-		set.SetIndex = 0
-		set.MovementIndex = 0
-		day = 0
-		week = 0
-		iter++
+	}
+	if smvmt == nil {
+		return nil, fmt.Errorf("no movement found with set type %q on day %d in week %d", setType, dayIndex, weekIndex)
+	}
+
+	// We only increment if we have some previous lift, otherwise we want the actual
+	// zeroth one.
+	if ll != nil {
+		// Go to the next set in the movement if we have one.
+		// If not, go to the next movement in the routine if we have one.
+		// If not, go to the next day in the week if we have one.
+		// If not, go to the next week in the iteration if we have one.
+		// If not, go to the next iteration, which we can always do.
+
+		if setIndex < len(smvmt.Sets)-1 {
+			setIndex++
+		} else if movementIndex < len(day.Movements)-1 {
+			setIndex = 0
+			movementIndex++
+		} else if dayIndex < len(week.Days)-1 {
+			setIndex = 0
+			movementIndex = 0
+			dayIndex++
+		} else if weekIndex < len(s.routine.Weeks)-1 {
+			setIndex = 0
+			movementIndex = 0
+			dayIndex = 0
+			weekIndex++
+		} else {
+			setIndex = 0
+			movementIndex = 0
+			dayIndex = 0
+			weekIndex = 0
+			iterIndex++
+		}
 	}
 
 	// If "the next thing" is a week we skipped, go straight to the next week or iter
-	if swm[weekIter{week: week, iteration: iter}] {
-		if week < len(routine.Weeks)-1 {
-			set.SetIndex = 0
-			set.MovementIndex = 0
-			day = 0
-			week++
+	if swm[weekIter{week: weekIndex, iteration: iterIndex}] {
+		if weekIndex < len(s.routine.Weeks)-1 {
+			setIndex = 0
+			movementIndex = 0
+			dayIndex = 0
+			weekIndex++
 		} else {
-			set.SetIndex = 0
-			set.MovementIndex = 0
-			day = 0
-			week = 0
-			iter++
+			setIndex = 0
+			movementIndex = 0
+			dayIndex = 0
+			weekIndex = 0
+			iterIndex++
 		}
 	}
 
-	// Update our day routine, which may very well have changed.
-	dayRoutine = routine.Weeks[week].Days[day]
+	// Update our day + week bits, which may very well have changed.
+	week = s.routine.Weeks[weekIndex]
+	day = week.Days[dayIndex]
 
 	// Now, load the smallest denom and training maxes, to set the target weights.
 	tms, err := s.db.TrainingMaxes()
@@ -676,75 +628,72 @@ func (s *Server) nextLiftLegacy() (*nextLiftResp, error) {
 		return nil, fmt.Errorf("failed to load smallest denom: %w", err)
 	}
 
-	associatedLift := func(st stronk.SetType, ex stronk.Exercise, setNum int) (stronk.LiftID, bool) {
-		wm, ok := m[iter]
-		if !ok {
-			return 0, false
+	var setIDs []stronk.RoutineSetID
+	for _, mvmt := range day.Movements {
+		for _, set := range mvmt.Sets {
+			setIDs = append(setIDs, set.ID)
 		}
-		dm, ok := wm[week]
-		if !ok {
-			return 0, false
-		}
-		stm, ok := dm[day]
-		if !ok {
-			return 0, false
-		}
-		lfs, ok := stm[st]
-		if !ok {
-			return 0, false
-		}
-		for _, l := range lfs {
-			if l.Exercise != ex {
-				continue
-			}
-			if l.SetNumber != setNum {
-				continue
-			}
-			return l.ID, true
-		}
-		return 0, false
 	}
 
-	mvmts := dayRoutine.Clone().Movements
-	for _, mvmt := range mvmts {
+	liftPerSetID, err := s.db.LatestLiftPerSetID(setIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load latest lift per set ID: %w", err)
+	}
+
+	associatedLiftID := func(id stronk.RoutineSetID) stronk.LiftID {
+		lift, ok := liftPerSetID[id]
+		if !ok {
+			return 0
+		}
+		if lift.IterationNumber != iterIndex {
+			return 0
+		}
+		return lift.ID
+	}
+
+	var workoutMvmts []*stronk.Movement
+	for _, mvmt := range day.Movements {
 		tm, ok := getTM(mvmt.Exercise)
 		if !ok {
 			// Just skip this one if we didn't set it.
 			continue
 		}
-		for i, set := range mvmt.Sets {
-			set.WeightTarget = roundWeight(tm, set.TrainingMaxPercentage, smallest)
-			id, ok := associatedLift(mvmt.SetType, mvmt.Exercise, i)
-			if ok {
-				set.AssociatedLiftID = id
-			}
+		var sets []*stronk.Set
+		for _, set := range mvmt.Sets {
+			weightTarget := roundWeight(tm, set.TrainingMaxPercentage, smallest)
 
-			if !set.ToFailure {
-				continue
+			var comparables *stronk.ComparableLifts
+			if set.ToFailure {
+				if comparables, err = s.db.ComparableLifts(mvmt.Exercise, weightTarget); err != nil {
+					return nil, fmt.Errorf("failed to load comparables: %w", err)
+				}
 			}
-			comparables, err := s.db.ComparableLifts(mvmt.Exercise, set.WeightTarget)
-			if err != nil {
-				return nil, fmt.Errorf("failed to load comparables: %w", err)
-			}
-			set.FailureComparables = comparables
+			sets = append(sets, &stronk.Set{
+				RepTarget:             set.RepTarget,
+				ToFailure:             set.ToFailure,
+				TrainingMaxPercentage: set.TrainingMaxPercentage,
+				WeightTarget:          weightTarget,
+				FailureComparables:    comparables,
+				AssociatedLiftID:      associatedLiftID(set.ID),
+			})
 		}
-	}
-
-	// For JSON serialization
-	if mvmts == nil {
-		mvmts = []*stronk.Movement{}
+		workoutMvmts = append(workoutMvmts, &stronk.Movement{
+			Exercise: mvmt.Exercise,
+			SetType:  mvmt.SetType,
+			Sets:     sets,
+		})
 	}
 
 	return &nextLiftResp{
-		DayNumber:         day,
-		WeekNumber:        week,
-		IterationNumber:   iter,
-		DayName:           dayRoutine.DayName,
-		WeekName:          routine.Weeks[week].WeekName,
-		Workout:           mvmts,
-		NextMovementIndex: set.MovementIndex,
-		NextSetIndex:      set.SetIndex,
-		OptionalWeek:      day == 0 && set.MovementIndex == 0 && set.SetIndex == 0 && routine.Weeks[week].Optional,
+		DayNumber:         dayIndex,
+		WeekNumber:        weekIndex,
+		IterationNumber:   iterIndex,
+		DayName:           day.DayName,
+		WeekName:          week.WeekName,
+		Workout:           workoutMvmts,
+		NextMovementIndex: movementIndex,
+		NextSetIndex:      setIndex,
+		OptionalWeek:      dayIndex == 0 && movementIndex == 0 && setIndex == 0 && week.Optional,
 	}, nil
 }
 
@@ -803,14 +752,17 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to use new system if available, otherwise fall back to legacy
-	var id stronk.LiftID
-	if s.storedRoutine != nil {
-		id, err = s.recordLiftWithStoredRoutine(req, weight)
-	} else {
-		id, err = s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
+	// Find the routine set that matches this lift
+	routineSet := s.routine.FindRoutineSet(req.Week, req.Day,
+		s.findMovementIndex(req.Week, req.Day, req.Exercise, req.SetType),
+		req.Set)
+
+	if routineSet == nil {
+		http.Error(w, "failed to load the relevant routine set", http.StatusInternalServerError)
+		return
 	}
-	
+
+	liftID, err := s.db.RecordLift(routineSet.ID, req.Reps, req.Note, weight)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to record lift: %v", err), http.StatusInternalServerError)
 		return
@@ -822,35 +774,15 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResp(w, recordLiftResp{id, nextLift})
-}
-
-func (s *Server) recordLiftWithStoredRoutine(req recordReq, weight stronk.Weight) (stronk.LiftID, error) {
-	// Find the routine set that matches this lift
-	routineSet := s.storedRoutine.FindRoutineSet(req.Week, req.Day, 
-		s.findMovementIndex(req.Week, req.Day, req.Exercise, req.SetType), 
-		req.Set)
-	
-	if routineSet == nil {
-		// Fall back to legacy method if we can't find the routine set
-		return s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
-	}
-
-	// Determine if we need to store reps
-	var repsPtr *int
-	if req.ToFailure || routineSet.RepTarget != req.Reps {
-		repsPtr = &req.Reps
-	}
-
-	return s.db.RecordLiftNew(routineSet.ID, weight, repsPtr, req.Note, req.Day, req.Week, req.Iteration)
+	jsonResp(w, recordLiftResp{liftID, nextLift})
 }
 
 // findMovementIndex finds the index of the movement within a day that matches the given exercise and set type
 func (s *Server) findMovementIndex(weekIdx, dayIdx int, exercise stronk.Exercise, setType stronk.SetType) int {
-	if weekIdx >= len(s.storedRoutine.Weeks) {
+	if weekIdx >= len(s.routine.Weeks) {
 		return -1
 	}
-	week := s.storedRoutine.Weeks[weekIdx]
+	week := s.routine.Weeks[weekIdx]
 
 	if dayIdx >= len(week.Days) {
 		return -1

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 )
 
 var (
@@ -223,8 +224,70 @@ type RoutineSetID int
 type StoredRoutine struct {
 	ID        RoutineID
 	Name      string
-	CreatedAt string
+	CreatedAt time.Time
 	Weeks     []*StoredRoutineWeek
+}
+
+func (s *StoredRoutine) LastSetID() (RoutineSetID, bool) {
+	lastWeekIdx := len(s.Weeks) - 1
+	if lastWeekIdx == -1 {
+		return 0, false
+	}
+	lastWeek := s.Weeks[lastWeekIdx]
+	lastDayIdx := len(lastWeek.Days) - 1
+	if lastDayIdx == -1 {
+		return 0, false
+	}
+	lastDay := lastWeek.Days[lastDayIdx]
+	lastMvmtIdx := len(lastDay.Movements) - 1
+	if lastMvmtIdx == -1 {
+		return 0, false
+	}
+	lastMvmt := lastDay.Movements[lastMvmtIdx]
+	lastSetIdx := len(lastMvmt.Sets) - 1
+	if lastSetIdx == -1 {
+		return 0, false
+	}
+	return lastMvmt.Sets[lastSetIdx].ID, true
+}
+
+func (s *StoredRoutine) ToRoutine() *Routine {
+	var weeks []*WorkoutWeek
+	for _, week := range s.Weeks {
+		var days []*WorkoutDay
+		for _, day := range week.Days {
+			var mvmts []*Movement
+			for _, mvmt := range day.Movements {
+				var sets []*Set
+				for _, set := range mvmt.Sets {
+					sets = append(sets, &Set{
+						RepTarget:             set.RepTarget,
+						ToFailure:             set.ToFailure,
+						TrainingMaxPercentage: set.TrainingMaxPercentage,
+					})
+				}
+				mvmts = append(mvmts, &Movement{
+					Exercise: mvmt.Exercise,
+					SetType:  mvmt.SetType,
+					Sets:     sets,
+				})
+			}
+			days = append(days, &WorkoutDay{
+				DayName:   day.DayName,
+				Movements: mvmts,
+			})
+		}
+		weeks = append(weeks, &WorkoutWeek{
+			WeekName: week.WeekName,
+			Optional: week.Optional,
+			Days:     days,
+		})
+	}
+
+	return &Routine{
+		Name:  s.Name,
+		Weeks: weeks,
+	}
 }
 
 type StoredRoutineWeek struct {
@@ -237,11 +300,11 @@ type StoredRoutineWeek struct {
 }
 
 type StoredRoutineDay struct {
-	ID             RoutineDayID
-	RoutineWeekID  RoutineWeekID
-	DayName        string
-	DayOrder       int
-	Movements      []*StoredRoutineMovement
+	ID            RoutineDayID
+	RoutineWeekID RoutineWeekID
+	DayName       string
+	DayOrder      int
+	Movements     []*StoredRoutineMovement
 }
 
 type StoredRoutineMovement struct {
@@ -266,7 +329,7 @@ type Lift struct {
 	ID           LiftID
 	RoutineSetID RoutineSetID
 	Weight       Weight
-	Reps         *int   // NULL if same as routine or for non-failure sets
+	Reps         int // NULL if same as routine or for non-failure sets
 	Note         string
 
 	// Day - 0, 1, 2, ... in a given week
@@ -280,18 +343,14 @@ type Lift struct {
 	// Derived fields (filled from routine_sets via join)
 	Exercise  Exercise
 	SetType   SetType
-	SetNumber int  // For compatibility with existing code
+	SetNumber int // For compatibility with existing code
 	ToFailure bool
 }
 
 func (l *Lift) AsOneRepMax() Weight {
-	reps := 1 // default to 1 if reps is null
-	if l.Reps != nil {
-		reps = *l.Reps
-	}
 	return Weight{
 		// ORM = Weight + (Weight * Num reps * 0.0333333)
-		Value: int(float64(l.Weight.Value) + 0.033333333*float64(l.Weight.Value)*float64(reps)),
+		Value: int(float64(l.Weight.Value) + 0.033333333*float64(l.Weight.Value)*float64(l.Reps)),
 		Unit:  l.Weight.Unit,
 	}
 }
@@ -392,8 +451,7 @@ func ConvertToStoredRoutine(routine *Routine, routineID RoutineID) *StoredRoutin
 				DayOrder: dayOrder,
 			}
 
-			movementOrder := 0
-			for _, movement := range day.Movements {
+			for movementOrder, movement := range day.Movements {
 				storedMovement := &StoredRoutineMovement{
 					Exercise:      movement.Exercise,
 					SetType:       movement.SetType,
@@ -411,7 +469,6 @@ func ConvertToStoredRoutine(routine *Routine, routineID RoutineID) *StoredRoutin
 				}
 
 				storedDay.Movements = append(storedDay.Movements, storedMovement)
-				movementOrder++
 			}
 
 			storedWeek.Days = append(storedWeek.Days, storedDay)
