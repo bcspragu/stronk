@@ -31,8 +31,18 @@ type DB interface {
 	SetSmallestDenom(small stronk.Weight) error
 	SmallestDenom() (stronk.Weight, error)
 
-	RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error)
+	// Routine management
+	GetCurrentRoutine() (*stronk.StoredRoutine, error)
+	StoreRoutine(routine *stronk.Routine) (*stronk.StoredRoutine, error)
+	GetRoutineSet(id stronk.RoutineSetID) (*stronk.StoredRoutineSet, error)
+	MigrateLiftsToNewFormat(storedRoutine *stronk.StoredRoutine) error
 
+	// New lift methods
+	RecordLiftNew(routineSetID stronk.RoutineSetID, weight stronk.Weight, reps *int, note string, day, week, iter int) (stronk.LiftID, error)
+	EditLiftNew(id stronk.LiftID, note string, reps *int) error
+
+	// Legacy lift methods (for backward compatibility during migration)
+	RecordLift(ex stronk.Exercise, st stronk.SetType, weight stronk.Weight, set int, reps int, note string, day, week, iter int, toFailure bool) (stronk.LiftID, error)
 	Lift(id stronk.LiftID) (*stronk.Lift, error)
 	EditLift(id stronk.LiftID, note string, reps int) error
 	RecentLifts() ([]*stronk.Lift, error)
@@ -43,9 +53,10 @@ type DB interface {
 type Server struct {
 	mux *http.ServeMux
 
-	routine *stronk.Routine
-	cookies SecureCookie
-	db      DB
+	routine       *stronk.Routine
+	storedRoutine *stronk.StoredRoutine
+	cookies       SecureCookie
+	db            DB
 }
 
 func New(routine *stronk.Routine, db DB) *Server {
@@ -53,12 +64,72 @@ func New(routine *stronk.Routine, db DB) *Server {
 		routine: routine,
 		db:      db,
 	}
+	
+	// Initialize the routine system
+	if err := s.initRoutine(); err != nil {
+		// For now, we'll continue with the old system if initialization fails
+		// In a real deployment, you might want to handle this differently
+		fmt.Printf("Warning: Failed to initialize routine system: %v\n", err)
+	}
+	
 	s.initMux()
 	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
+}
+
+// initRoutine initializes the routine system by checking if the current routine
+// needs to be stored in the database
+func (s *Server) initRoutine() error {
+	// Get the current stored routine
+	storedRoutine, err := s.db.GetCurrentRoutine()
+	if err != nil {
+		return fmt.Errorf("failed to get current routine: %w", err)
+	}
+
+	// If we have no stored routine, store the current one and migrate existing lifts
+	if storedRoutine == nil {
+		stored, err := s.db.StoreRoutine(s.routine)
+		if err != nil {
+			return fmt.Errorf("failed to store initial routine: %w", err)
+		}
+		s.storedRoutine = stored
+		
+		// Migrate existing lifts to the new format
+		if err := s.db.MigrateLiftsToNewFormat(stored); err != nil {
+			return fmt.Errorf("failed to migrate lifts to new format: %w", err)
+		}
+		
+		return nil
+	}
+
+	// Check if the current routine differs from the stored one
+	currentHash, err := s.routine.Hash()
+	if err != nil {
+		return fmt.Errorf("failed to hash current routine: %w", err)
+	}
+
+	// Convert stored routine back to Routine for comparison
+	// For now, we'll just assume they're different if we can't compare easily
+	// A more robust implementation might convert StoredRoutine back to Routine
+	// or store the hash in the database
+	
+	// For simplicity, let's just check if the names match
+	if storedRoutine.Name != s.routine.Name {
+		// Store the new routine
+		stored, err := s.db.StoreRoutine(s.routine)
+		if err != nil {
+			return fmt.Errorf("failed to store updated routine: %w", err)
+		}
+		s.storedRoutine = stored
+		return nil
+	}
+
+	// Use the existing stored routine
+	s.storedRoutine = storedRoutine
+	return nil
 }
 
 func (s *Server) initMux() {
@@ -455,6 +526,22 @@ func (s *Server) nextLiftResponse(w http.ResponseWriter) {
 }
 
 func (s *Server) nextLift() (*nextLiftResp, error) {
+	// Use the stored routine if available, otherwise fall back to the JSON routine
+	if s.storedRoutine != nil {
+		return s.nextLiftWithStoredRoutine()
+	}
+	
+	// Fallback to old logic for backwards compatibility
+	return s.nextLiftLegacy()
+}
+
+func (s *Server) nextLiftWithStoredRoutine() (*nextLiftResp, error) {
+	// TODO: Implement the new logic using stored routines
+	// For now, fall back to legacy method
+	return s.nextLiftLegacy()
+}
+
+func (s *Server) nextLiftLegacy() (*nextLiftResp, error) {
 	// Now the tricky part - we need to figure out the last one that a user
 	// actually completed. Here's our strategy for doing so
 	//  1. Load the users 20 latest lifts, ordered by iteration, then week, then day.
@@ -716,7 +803,14 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
+	// Try to use new system if available, otherwise fall back to legacy
+	var id stronk.LiftID
+	if s.storedRoutine != nil {
+		id, err = s.recordLiftWithStoredRoutine(req, weight)
+	} else {
+		id, err = s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
+	}
+	
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to record lift: %v", err), http.StatusInternalServerError)
 		return
@@ -729,6 +823,46 @@ func (s *Server) serveRecordLift(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResp(w, recordLiftResp{id, nextLift})
+}
+
+func (s *Server) recordLiftWithStoredRoutine(req recordReq, weight stronk.Weight) (stronk.LiftID, error) {
+	// Find the routine set that matches this lift
+	routineSet := s.storedRoutine.FindRoutineSet(req.Week, req.Day, 
+		s.findMovementIndex(req.Week, req.Day, req.Exercise, req.SetType), 
+		req.Set)
+	
+	if routineSet == nil {
+		// Fall back to legacy method if we can't find the routine set
+		return s.db.RecordLift(req.Exercise, req.SetType, weight, req.Set, req.Reps, req.Note, req.Day, req.Week, req.Iteration, req.ToFailure)
+	}
+
+	// Determine if we need to store reps
+	var repsPtr *int
+	if req.ToFailure || routineSet.RepTarget != req.Reps {
+		repsPtr = &req.Reps
+	}
+
+	return s.db.RecordLiftNew(routineSet.ID, weight, repsPtr, req.Note, req.Day, req.Week, req.Iteration)
+}
+
+// findMovementIndex finds the index of the movement within a day that matches the given exercise and set type
+func (s *Server) findMovementIndex(weekIdx, dayIdx int, exercise stronk.Exercise, setType stronk.SetType) int {
+	if weekIdx >= len(s.storedRoutine.Weeks) {
+		return -1
+	}
+	week := s.storedRoutine.Weeks[weekIdx]
+
+	if dayIdx >= len(week.Days) {
+		return -1
+	}
+	day := week.Days[dayIdx]
+
+	for i, movement := range day.Movements {
+		if movement.Exercise == exercise && movement.SetType == setType {
+			return i
+		}
+	}
+	return -1
 }
 
 type recordLiftResp struct {

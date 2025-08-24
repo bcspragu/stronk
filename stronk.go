@@ -2,6 +2,8 @@
 package stronk
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -211,15 +213,61 @@ func (s *Set) Clone() *Set {
 }
 
 type LiftID int
+type RoutineID int
+type RoutineWeekID int
+type RoutineDayID int
+type RoutineMovementID int
+type RoutineSetID int
+
+// Database routine types - these represent the stored routine structure
+type StoredRoutine struct {
+	ID        RoutineID
+	Name      string
+	CreatedAt string
+	Weeks     []*StoredRoutineWeek
+}
+
+type StoredRoutineWeek struct {
+	ID        RoutineWeekID
+	RoutineID RoutineID
+	WeekName  string
+	Optional  bool
+	WeekOrder int
+	Days      []*StoredRoutineDay
+}
+
+type StoredRoutineDay struct {
+	ID             RoutineDayID
+	RoutineWeekID  RoutineWeekID
+	DayName        string
+	DayOrder       int
+	Movements      []*StoredRoutineMovement
+}
+
+type StoredRoutineMovement struct {
+	ID            RoutineMovementID
+	RoutineDayID  RoutineDayID
+	Exercise      Exercise
+	SetType       SetType
+	MovementOrder int
+	Sets          []*StoredRoutineSet
+}
+
+type StoredRoutineSet struct {
+	ID                    RoutineSetID
+	RoutineMovementID     RoutineMovementID
+	RepTarget             int
+	ToFailure             bool
+	TrainingMaxPercentage int
+	SetOrder              int
+}
 
 type Lift struct {
-	ID        LiftID
-	Exercise  Exercise
-	SetType   SetType
-	Weight    Weight
-	SetNumber int
-	Reps      int
-	Note      string
+	ID           LiftID
+	RoutineSetID RoutineSetID
+	Weight       Weight
+	Reps         *int   // NULL if same as routine or for non-failure sets
+	Note         string
 
 	// Day - 0, 1, 2, ... in a given week
 	// Week - 0, 1, 2, ... in a given iteration
@@ -228,13 +276,22 @@ type Lift struct {
 	DayNumber       int
 	WeekNumber      int
 	IterationNumber int
-	ToFailure       bool
+
+	// Derived fields (filled from routine_sets via join)
+	Exercise  Exercise
+	SetType   SetType
+	SetNumber int  // For compatibility with existing code
+	ToFailure bool
 }
 
 func (l *Lift) AsOneRepMax() Weight {
+	reps := 1 // default to 1 if reps is null
+	if l.Reps != nil {
+		reps = *l.Reps
+	}
 	return Weight{
 		// ORM = Weight + (Weight * Num reps * 0.0333333)
-		Value: int(float64(l.Weight.Value) + 0.033333333*float64(l.Weight.Value)*float64(l.Reps)),
+		Value: int(float64(l.Weight.Value) + 0.033333333*float64(l.Weight.Value)*float64(reps)),
 		Unit:  l.Weight.Unit,
 	}
 }
@@ -303,4 +360,88 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// RoutineHash generates a SHA256 hash of the routine structure to detect changes
+func (r *Routine) Hash() (string, error) {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(b)
+	return fmt.Sprintf("%x", hash), nil
+}
+
+// ConvertToStoredRoutine converts a JSON routine to the stored database format
+func ConvertToStoredRoutine(routine *Routine, routineID RoutineID) *StoredRoutine {
+	stored := &StoredRoutine{
+		ID:   routineID,
+		Name: routine.Name,
+	}
+
+	for weekOrder, week := range routine.Weeks {
+		storedWeek := &StoredRoutineWeek{
+			WeekName:  week.WeekName,
+			Optional:  week.Optional,
+			WeekOrder: weekOrder,
+		}
+
+		for dayOrder, day := range week.Days {
+			storedDay := &StoredRoutineDay{
+				DayName:  day.DayName,
+				DayOrder: dayOrder,
+			}
+
+			movementOrder := 0
+			for _, movement := range day.Movements {
+				storedMovement := &StoredRoutineMovement{
+					Exercise:      movement.Exercise,
+					SetType:       movement.SetType,
+					MovementOrder: movementOrder,
+				}
+
+				for setOrder, set := range movement.Sets {
+					storedSet := &StoredRoutineSet{
+						RepTarget:             set.RepTarget,
+						ToFailure:             set.ToFailure,
+						TrainingMaxPercentage: set.TrainingMaxPercentage,
+						SetOrder:              setOrder,
+					}
+					storedMovement.Sets = append(storedMovement.Sets, storedSet)
+				}
+
+				storedDay.Movements = append(storedDay.Movements, storedMovement)
+				movementOrder++
+			}
+
+			storedWeek.Days = append(storedWeek.Days, storedDay)
+		}
+
+		stored.Weeks = append(stored.Weeks, storedWeek)
+	}
+
+	return stored
+}
+
+// FindRoutineSet locates a specific routine set by coordinates (week, day, movement, set indices)
+func (sr *StoredRoutine) FindRoutineSet(weekIdx, dayIdx, movementIdx, setIdx int) *StoredRoutineSet {
+	if weekIdx >= len(sr.Weeks) {
+		return nil
+	}
+	week := sr.Weeks[weekIdx]
+
+	if dayIdx >= len(week.Days) {
+		return nil
+	}
+	day := week.Days[dayIdx]
+
+	if movementIdx >= len(day.Movements) {
+		return nil
+	}
+	movement := day.Movements[movementIdx]
+
+	if setIdx >= len(movement.Sets) {
+		return nil
+	}
+	return movement.Sets[setIdx]
 }

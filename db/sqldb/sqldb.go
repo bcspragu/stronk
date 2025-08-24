@@ -569,6 +569,426 @@ func (db *DB) initMainLifts() error {
 	return nil
 }
 
+// GetCurrentRoutine returns the most recently stored routine
+func (db *DB) GetCurrentRoutine() (*stronk.StoredRoutine, error) {
+	var routine *stronk.StoredRoutine
+	err := db.transact(func(tx *sql.Tx) error {
+		// Get the most recent routine
+		routineQuery := `
+		SELECT id, name, created_at 
+		FROM routines 
+		ORDER BY created_at DESC 
+		LIMIT 1`
+
+		var r stronk.StoredRoutine
+		if err := tx.QueryRow(routineQuery).Scan(&r.ID, &r.Name, &r.CreatedAt); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil // No routine stored yet
+			}
+			return fmt.Errorf("failed to query current routine: %w", err)
+		}
+
+		// Load weeks
+		weeksQuery := `
+		SELECT id, week_name, optional, week_order
+		FROM routine_weeks
+		WHERE routine_id = ?
+		ORDER BY week_order`
+
+		weekRows, err := tx.Query(weeksQuery, r.ID)
+		if err != nil {
+			return fmt.Errorf("failed to query routine weeks: %w", err)
+		}
+		defer weekRows.Close()
+
+		weekMap := make(map[stronk.RoutineWeekID]*stronk.StoredRoutineWeek)
+		for weekRows.Next() {
+			var week stronk.StoredRoutineWeek
+			week.RoutineID = r.ID
+			if err := weekRows.Scan(&week.ID, &week.WeekName, &week.Optional, &week.WeekOrder); err != nil {
+				return fmt.Errorf("failed to scan routine week: %w", err)
+			}
+			weekMap[week.ID] = &week
+			r.Weeks = append(r.Weeks, &week)
+		}
+
+		// Load days
+		if len(r.Weeks) > 0 {
+			var weekIDs []interface{}
+			for _, week := range r.Weeks {
+				weekIDs = append(weekIDs, week.ID)
+			}
+
+			daysQuery := fmt.Sprintf(`
+			SELECT id, routine_week_id, day_name, day_order
+			FROM routine_days
+			WHERE routine_week_id IN %s
+			ORDER BY routine_week_id, day_order`, repeatedArgs(len(weekIDs)))
+
+			dayRows, err := tx.Query(daysQuery, weekIDs...)
+			if err != nil {
+				return fmt.Errorf("failed to query routine days: %w", err)
+			}
+			defer dayRows.Close()
+
+			dayMap := make(map[stronk.RoutineDayID]*stronk.StoredRoutineDay)
+			for dayRows.Next() {
+				var day stronk.StoredRoutineDay
+				if err := dayRows.Scan(&day.ID, &day.RoutineWeekID, &day.DayName, &day.DayOrder); err != nil {
+					return fmt.Errorf("failed to scan routine day: %w", err)
+				}
+				dayMap[day.ID] = &day
+				weekMap[day.RoutineWeekID].Days = append(weekMap[day.RoutineWeekID].Days, &day)
+			}
+
+			// Load movements if we have days
+			if len(dayMap) > 0 {
+				var dayIDs []interface{}
+				for dayID := range dayMap {
+					dayIDs = append(dayIDs, dayID)
+				}
+
+				movementsQuery := fmt.Sprintf(`
+				SELECT rm.id, rm.routine_day_id, e.name, rm.set_type, rm.movement_order
+				FROM routine_movements rm
+				JOIN exercises e ON rm.exercise_id = e.id
+				WHERE rm.routine_day_id IN %s
+				ORDER BY rm.routine_day_id, rm.movement_order`, repeatedArgs(len(dayIDs)))
+
+				movementRows, err := tx.Query(movementsQuery, dayIDs...)
+				if err != nil {
+					return fmt.Errorf("failed to query routine movements: %w", err)
+				}
+				defer movementRows.Close()
+
+				movementMap := make(map[stronk.RoutineMovementID]*stronk.StoredRoutineMovement)
+				for movementRows.Next() {
+					var movement stronk.StoredRoutineMovement
+					if err := movementRows.Scan(&movement.ID, &movement.RoutineDayID, &movement.Exercise, &movement.SetType, &movement.MovementOrder); err != nil {
+						return fmt.Errorf("failed to scan routine movement: %w", err)
+					}
+					movementMap[movement.ID] = &movement
+					dayMap[movement.RoutineDayID].Movements = append(dayMap[movement.RoutineDayID].Movements, &movement)
+				}
+
+				// Load sets if we have movements
+				if len(movementMap) > 0 {
+					var movementIDs []interface{}
+					for movementID := range movementMap {
+						movementIDs = append(movementIDs, movementID)
+					}
+
+					setsQuery := fmt.Sprintf(`
+					SELECT id, routine_movement_id, rep_target, to_failure, training_max_percentage, set_order
+					FROM routine_sets
+					WHERE routine_movement_id IN %s
+					ORDER BY routine_movement_id, set_order`, repeatedArgs(len(movementIDs)))
+
+					setRows, err := tx.Query(setsQuery, movementIDs...)
+					if err != nil {
+						return fmt.Errorf("failed to query routine sets: %w", err)
+					}
+					defer setRows.Close()
+
+					for setRows.Next() {
+						var set stronk.StoredRoutineSet
+						if err := setRows.Scan(&set.ID, &set.RoutineMovementID, &set.RepTarget, &set.ToFailure, &set.TrainingMaxPercentage, &set.SetOrder); err != nil {
+							return fmt.Errorf("failed to scan routine set: %w", err)
+						}
+						movementMap[set.RoutineMovementID].Sets = append(movementMap[set.RoutineMovementID].Sets, &set)
+					}
+				}
+			}
+		}
+
+		routine = &r
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current routine: %w", err)
+	}
+	return routine, nil
+}
+
+// StoreRoutine stores a new routine in the database
+func (db *DB) StoreRoutine(routine *stronk.Routine) (*stronk.StoredRoutine, error) {
+	var stored *stronk.StoredRoutine
+	err := db.transact(func(tx *sql.Tx) error {
+		// Insert routine
+		routineQuery := `
+		INSERT INTO routines (name) 
+		VALUES (?) 
+		RETURNING id`
+
+		var routineID stronk.RoutineID
+		if err := tx.QueryRow(routineQuery, routine.Name).Scan(&routineID); err != nil {
+			return fmt.Errorf("failed to insert routine: %w", err)
+		}
+
+		stored = stronk.ConvertToStoredRoutine(routine, routineID)
+
+		// Insert weeks
+		for _, week := range stored.Weeks {
+			weekQuery := `
+			INSERT INTO routine_weeks (routine_id, week_name, optional, week_order)
+			VALUES (?, ?, ?, ?)
+			RETURNING id`
+
+			if err := tx.QueryRow(weekQuery, routineID, week.WeekName, week.Optional, week.WeekOrder).Scan(&week.ID); err != nil {
+				return fmt.Errorf("failed to insert routine week: %w", err)
+			}
+			week.RoutineID = routineID
+
+			// Insert days
+			for _, day := range week.Days {
+				dayQuery := `
+				INSERT INTO routine_days (routine_week_id, day_name, day_order)
+				VALUES (?, ?, ?)
+				RETURNING id`
+
+				if err := tx.QueryRow(dayQuery, week.ID, day.DayName, day.DayOrder).Scan(&day.ID); err != nil {
+					return fmt.Errorf("failed to insert routine day: %w", err)
+				}
+				day.RoutineWeekID = week.ID
+
+				// Insert movements
+				for _, movement := range day.Movements {
+					movementQuery := `
+					INSERT INTO routine_movements (routine_day_id, exercise_id, set_type, movement_order)
+					VALUES (?, (SELECT id FROM exercises WHERE name = ?), ?, ?)
+					RETURNING id`
+
+					if err := tx.QueryRow(movementQuery, day.ID, movement.Exercise, movement.SetType, movement.MovementOrder).Scan(&movement.ID); err != nil {
+						return fmt.Errorf("failed to insert routine movement: %w", err)
+					}
+					movement.RoutineDayID = day.ID
+
+					// Insert sets
+					for _, set := range movement.Sets {
+						setQuery := `
+						INSERT INTO routine_sets (routine_movement_id, rep_target, to_failure, training_max_percentage, set_order)
+						VALUES (?, ?, ?, ?, ?)
+						RETURNING id`
+
+						if err := tx.QueryRow(setQuery, movement.ID, set.RepTarget, set.ToFailure, set.TrainingMaxPercentage, set.SetOrder).Scan(&set.ID); err != nil {
+							return fmt.Errorf("failed to insert routine set: %w", err)
+						}
+						set.RoutineMovementID = movement.ID
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to store routine: %w", err)
+	}
+	return stored, nil
+}
+
+// GetRoutineSet gets a specific routine set by ID
+func (db *DB) GetRoutineSet(id stronk.RoutineSetID) (*stronk.StoredRoutineSet, error) {
+	var set *stronk.StoredRoutineSet
+	err := db.transact(func(tx *sql.Tx) error {
+		query := `
+		SELECT id, routine_movement_id, rep_target, to_failure, training_max_percentage, set_order
+		FROM routine_sets
+		WHERE id = ?`
+
+		var s stronk.StoredRoutineSet
+		if err := tx.QueryRow(query, id).Scan(&s.ID, &s.RoutineMovementID, &s.RepTarget, &s.ToFailure, &s.TrainingMaxPercentage, &s.SetOrder); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("routine set %d not found", id)
+			}
+			return fmt.Errorf("failed to query routine set: %w", err)
+		}
+		set = &s
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get routine set: %w", err)
+	}
+	return set, nil
+}
+
+// RecordLiftNew records a lift using the new routine system
+func (db *DB) RecordLiftNew(routineSetID stronk.RoutineSetID, weight stronk.Weight, reps *int, note string, day, week, iter int) (stronk.LiftID, error) {
+	var id stronk.LiftID
+	err := db.transact(func(tx *sql.Tx) error {
+		query := `
+		INSERT INTO lifts_new (routine_set_id, weight, reps, lift_note, day_number, week_number, iteration_number)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		RETURNING id`
+
+		if err := tx.QueryRow(query, routineSetID, &sqlWeight{&weight}, reps, nullString(note), day, week, iter).Scan(&id); err != nil {
+			return fmt.Errorf("failed to insert lift: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to record lift: %w", err)
+	}
+	return id, nil
+}
+
+// EditLiftNew edits a lift using the new system
+func (db *DB) EditLiftNew(id stronk.LiftID, note string, reps *int) error {
+	return db.transact(func(tx *sql.Tx) error {
+		query := `
+		UPDATE lifts_new
+		SET reps = ?, lift_note = ?
+		WHERE id = ?`
+		_, err := tx.Exec(query, reps, nullString(note), id)
+		return err
+	})
+}
+
+// MigrateLiftsToNewFormat migrates existing lifts from the old format to the new one
+// This should be called after storing the routine in the database
+func (db *DB) MigrateLiftsToNewFormat(storedRoutine *stronk.StoredRoutine) error {
+	return db.transact(func(tx *sql.Tx) error {
+		// Get all existing lifts
+		liftsQuery := `
+		SELECT l.id, e.name, l.set_type, l.weight, l.set_number, l.reps, l.lift_note,
+		       l.day_number, l.week_number, l.iteration_number, l.to_failure
+		FROM lifts l
+		JOIN exercises e ON l.exercise_id = e.id
+		ORDER BY l.iteration_number, l.week_number, l.day_number, l.created_at`
+
+		rows, err := tx.Query(liftsQuery)
+		if err != nil {
+			return fmt.Errorf("failed to query existing lifts: %w", err)
+		}
+		defer rows.Close()
+
+		var migratedCount int
+		for rows.Next() {
+			var (
+				id              stronk.LiftID
+				exercise        stronk.Exercise
+				setType         stronk.SetType
+				weight          stronk.Weight
+				setNumber       int
+				reps            int
+				note            sql.NullString
+				dayNumber       int
+				weekNumber      int
+				iterationNumber int
+				toFailure       bool
+			)
+
+			if err := rows.Scan(&id, &exercise, &setType, &sqlWeight{&weight}, &setNumber, &reps, &note,
+				&dayNumber, &weekNumber, &iterationNumber, &toFailure); err != nil {
+				return fmt.Errorf("failed to scan lift: %w", err)
+			}
+
+			// Find the corresponding routine set
+			routineSetID, err := db.findMatchingRoutineSet(tx, storedRoutine, exercise, setType, 
+				dayNumber, weekNumber, setNumber)
+			if err != nil {
+				// Log and skip this lift if we can't find a match
+				log.Printf("Warning: Could not find matching routine set for lift %d: %v", id, err)
+				continue
+			}
+
+			// Migrate the lift
+			var repsPtr *int
+			if toFailure {
+				// For failure sets, always store the actual reps
+				repsPtr = &reps
+			} else {
+				// For non-failure sets, only store reps if they differ from the routine
+				routineSet, err := db.getRoutineSetFromTx(tx, routineSetID)
+				if err != nil {
+					log.Printf("Warning: Could not get routine set %d: %v", routineSetID, err)
+					repsPtr = &reps // Store anyway
+				} else if routineSet.RepTarget != reps {
+					repsPtr = &reps
+				}
+				// Otherwise, leave repsPtr as nil
+			}
+
+			noteStr := ""
+			if note.Valid {
+				noteStr = note.String
+			}
+
+			// Insert into new lifts table
+			insertQuery := `
+			INSERT INTO lifts_new (routine_set_id, weight, reps, lift_note, day_number, week_number, iteration_number)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`
+
+			if _, err := tx.Exec(insertQuery, routineSetID, &sqlWeight{&weight}, repsPtr, 
+				nullString(noteStr), dayNumber, weekNumber, iterationNumber); err != nil {
+				return fmt.Errorf("failed to insert migrated lift: %w", err)
+			}
+
+			migratedCount++
+		}
+
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("error iterating through lifts: %w", err)
+		}
+
+		log.Printf("Successfully migrated %d lifts to new format", migratedCount)
+		return nil
+	})
+}
+
+// findMatchingRoutineSet finds the routine set ID that matches the given lift parameters
+func (db *DB) findMatchingRoutineSet(tx *sql.Tx, storedRoutine *stronk.StoredRoutine, 
+	exercise stronk.Exercise, setType stronk.SetType, dayNumber, weekNumber, setNumber int) (stronk.RoutineSetID, error) {
+	
+	// Navigate through the routine structure to find the matching set
+	if weekNumber >= len(storedRoutine.Weeks) {
+		return 0, fmt.Errorf("week %d not found in routine", weekNumber)
+	}
+	week := storedRoutine.Weeks[weekNumber]
+
+	if dayNumber >= len(week.Days) {
+		return 0, fmt.Errorf("day %d not found in week %d", dayNumber, weekNumber)
+	}
+	day := week.Days[dayNumber]
+
+	// Find the movement that matches the exercise and set type
+	var targetMovement *stronk.StoredRoutineMovement
+	for _, movement := range day.Movements {
+		if movement.Exercise == exercise && movement.SetType == setType {
+			targetMovement = movement
+			break
+		}
+	}
+
+	if targetMovement == nil {
+		return 0, fmt.Errorf("no movement found for exercise %s, set type %s on day %d, week %d", 
+			exercise, setType, dayNumber, weekNumber)
+	}
+
+	// Get the set (0-indexed)
+	if setNumber >= len(targetMovement.Sets) {
+		return 0, fmt.Errorf("set %d not found in movement (has %d sets)", 
+			setNumber, len(targetMovement.Sets))
+	}
+
+	return targetMovement.Sets[setNumber].ID, nil
+}
+
+// getRoutineSetFromTx gets a routine set within a transaction
+func (db *DB) getRoutineSetFromTx(tx *sql.Tx, id stronk.RoutineSetID) (*stronk.StoredRoutineSet, error) {
+	query := `
+	SELECT id, routine_movement_id, rep_target, to_failure, training_max_percentage, set_order
+	FROM routine_sets
+	WHERE id = ?`
+
+	var set stronk.StoredRoutineSet
+	if err := tx.QueryRow(query, id).Scan(&set.ID, &set.RoutineMovementID, &set.RepTarget, 
+		&set.ToFailure, &set.TrainingMaxPercentage, &set.SetOrder); err != nil {
+		return nil, fmt.Errorf("failed to get routine set: %w", err)
+	}
+	return &set, nil
+}
+
 func repeatedArgs(n int) string {
 	if n < 1 {
 		// Normally, you wouldn't want to panic in a production application, but
