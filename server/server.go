@@ -839,57 +839,6 @@ type lastSet struct {
 	NoneDone      bool
 }
 
-func lastSetDone(day, week, iter int, lifts []*stronk.Lift, dayRoutine *stronk.WorkoutDay) lastSet {
-	// If we have no recorded lifts for the day, it's safe to say the first
-	// movement to do is the first movement we have.
-	if len(lifts) == 0 {
-		return lastSet{NoneDone: true}
-	}
-
-	// We want to match up lifts with our workout to see where we are.
-	idx := len(lifts) - 1
-	for i, mvmt := range dayRoutine.Movements {
-		// Note that we don't actually look at the set info (reps, failure, etc),
-		// moreso just the number of sets because there are lots of practical
-		// reasons that those things might not match up.
-		for j := range mvmt.Sets {
-			lift := lifts[idx]
-
-			// See if the recorded lift matches this.
-			// If it doesn't, we just skip forward to the next exercise of the day.
-			if lift.Exercise != mvmt.Exercise {
-				break
-			}
-			if lift.SetType != mvmt.SetType {
-				break
-			}
-
-			// If the set type and exercise match, there's a good chance that this
-			// lift corresponds to a set of this routine.
-			idx--
-			if idx < 0 {
-				// We've gone through all recorded lifts, meaning that this is the last
-				// set we did.
-				return lastSet{
-					MovementIndex: i,
-					SetIndex:      j,
-					NoneDone:      false,
-				}
-			}
-		}
-	}
-
-	// If we're here, we had lifts that we hadn't looked at, but we went through
-	// all the movements. I don't think this should happen, but I guess it means
-	// we're done with the day?
-	lastMvmt := dayRoutine.Movements[len(dayRoutine.Movements)-1]
-	return lastSet{
-		MovementIndex: len(dayRoutine.Movements) - 1,
-		SetIndex:      len(lastMvmt.Sets) - 1,
-		NoneDone:      false,
-	}
-}
-
 func filterLifts(lifts []*stronk.Lift, day, week, iter int) []*stronk.Lift {
 	var out []*stronk.Lift
 	for _, lift := range lifts {

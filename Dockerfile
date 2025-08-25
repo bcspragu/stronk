@@ -14,8 +14,7 @@ COPY testing/ /project/testing
 # Needed for testing
 COPY routine.example.json /project
 
-# RUN go test ./... && GOOS=linux go build -ldflags "-linkmode external -extldflags -static" -o stronk github.com/bcspragu/stronk/cmd/server
-RUN GOOS=linux go build -ldflags "-linkmode external -extldflags -static" -o stronk github.com/bcspragu/stronk/cmd/server
+RUN go test ./... && GOOS=linux go build -ldflags "-linkmode external -extldflags -static" -o stronk github.com/bcspragu/stronk/cmd/server
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=build /project/stronk /

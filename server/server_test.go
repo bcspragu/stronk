@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -53,7 +53,7 @@ func TestNextLift(t *testing.T) {
 		}
 
 		var got nextLiftResp
-		dat, err := ioutil.ReadAll(resp.Body)
+		dat, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatalf("failed to read response body: %v", err)
 		}
@@ -71,7 +71,7 @@ func TestNextLift(t *testing.T) {
 
 		resp := w.Result()
 		if status := resp.StatusCode; status != http.StatusOK {
-			t.Fatalf("unexpected response code from server %d, wanted OK", status)
+			t.Fatalf("unexpected response code from server %d, wanted OK: %s", status, w.Body.String())
 		}
 
 		checkAndParseNextLiftResponse(w.Result(), want)
@@ -439,7 +439,7 @@ func TestNextLift(t *testing.T) {
 			}
 
 			var got recordLiftResp
-			dat, err := ioutil.ReadAll(resp.Body)
+			dat, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatalf("failed to read response body: %v", err)
 			}
@@ -766,9 +766,10 @@ func (e *testEnv) smallestDenom(t *testing.T) stronk.Weight {
 }
 
 func setup(t *testing.T) (*Server, *testEnv) {
-	env := &testEnv{db: testdb.New()}
+	routine := loadRoutine(t)
+	env := &testEnv{db: testdb.New(routine)}
 
-	return New(loadRoutine(t), env.db), env
+	return New(routine, env.db), env
 }
 
 func loadRoutine(t *testing.T) *stronk.Routine {
