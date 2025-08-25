@@ -19,7 +19,7 @@ func (sw sqlWeight) Value() (driver.Value, error) {
 	return fmt.Sprintf("%d:%s", sw.w.Value, sw.w.Unit), nil
 }
 
-func (sw *sqlWeight) Scan(val interface{}) error {
+func (sw *sqlWeight) Scan(val any) error {
 	if val == nil {
 		return errors.New("weight should always be set")
 	}
