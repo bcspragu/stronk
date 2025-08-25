@@ -11,6 +11,8 @@ Your exercises are configured via a `routine.json` file that specifies lifts in 
 
 An example `routine.example.json` is included, which implements a fairly standard 5/3/1 using "Big but Boring" for the assistance work. It includes an optional deload week.
 
+As of 2025-08-25, you can now modify your `routine.json` config. On next boot, the server will detect the change and use the updated routine once the current cycle finishes. See #3 for more details.
+
 ## Screenshots
 
 The training max page, where you enter your initial training maxes, which all subsequent sets will be based on.
