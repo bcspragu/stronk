@@ -1,5 +1,5 @@
-# docker build -t 192.168.5.3:5000/stronk .
-FROM golang:1.24 AS build
+# docker build -t registryext.bsprague.com/stronk .
+FROM golang:1.25 AS build
 
 WORKDIR /project
 
